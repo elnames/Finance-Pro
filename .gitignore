@@ -1,0 +1,45 @@
+# Dependencies
+**/node_modules
+**/package-lock.json
+**/yarn-error.log
+
+# Next.js
+**/.next
+**/out
+
+# Production
+**/build
+**/dist
+
+# Environment / Sensitive
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+
+# Databases
+**/*.db
+**/*.sqlite
+
+# Logs
+**/logs
+**/*.log
+**/npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Project Specific (Requested by user)
+skills/
+CONTEXTO_IA.md
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary
+/tmp/
