@@ -10,6 +10,30 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCat, setNewCat] = useState({ nombre: '', tipo: 'GASTO', colorHex: '#3b82f6' });
+  const [editCat, setEditCat] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('¿Eliminar esta categoría?')) {
+      try {
+        await api.delete(`/categories/${id}`);
+        fetchCategories();
+      } catch (error) {
+        console.error('Error deleting category', error);
+      }
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.patch(`/categories/${editCat.id}`, editCat);
+      setIsEditModalOpen(false);
+      fetchCategories();
+    } catch (error) {
+      console.error('Error updating category', error);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -105,9 +129,39 @@ export default function CategoriesPage() {
         </form>
       </Modal>
 
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Editar Categoría">
+        {editCat && (
+            <form onSubmit={handleEditSubmit} className="space-y-6">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Nombre</label>
+                    <input required value={editCat.nombre} onChange={(e) => setEditCat({...editCat, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Tipo</label>
+                        <select value={editCat.tipo} onChange={(e) => setEditCat({...editCat, tipo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold">
+                            <option value="GASTO" className="bg-zinc-900">Gasto</option>
+                            <option value="INGRESO" className="bg-zinc-900">Ingreso</option>
+                        </select>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Color</label>
+                        <input type="color" value={editCat.colorHex} onChange={(e) => setEditCat({...editCat, colorHex: e.target.value})} className="w-full h-[54px] bg-white/5 border border-white/10 rounded-2xl p-1" />
+                    </div>
+                </div>
+                <button type="submit" className="w-full bg-primary py-4 rounded-2xl font-black mt-4">Guardar Cambios</button>
+            </form>
+        )}
+      </Modal>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {categories.map((cat) => (
-          <CategoryCard key={cat.id} category={cat} />
+          <CategoryCard 
+            key={cat.id} 
+            category={cat} 
+            onDelete={() => handleDelete(cat.id)}
+            onEdit={() => { setEditCat(cat); setIsEditModalOpen(true); }}
+          />
         ))}
         {categories.length === 0 && (
             <div className="col-span-full py-20 text-center glass rounded-[40px] border border-dashed border-white/20">
@@ -120,7 +174,8 @@ export default function CategoriesPage() {
   );
 }
 
-function CategoryCard({ category }: any) {
+function CategoryCard({ category, onDelete, onEdit }: any) {
+  const [showActions, setShowActions] = useState(false);
   return (
     <motion.div 
       whileHover={{ y: -5, scale: 1.02 }}
@@ -133,9 +188,17 @@ function CategoryCard({ category }: any) {
         >
           <Layers className="w-6 h-6" />
         </div>
-        <button className="p-2 hover:bg-white/5 rounded-full transition-colors opacity-0 group-hover:opacity-100">
-          <MoreHorizontal className="w-5 h-5" />
-        </button>
+        <div className="relative">
+            <button onClick={() => setShowActions(!showActions)} className="p-2 hover:bg-white/5 rounded-full transition-colors opacity-0 group-hover:opacity-100">
+                <MoreHorizontal className="w-5 h-5" />
+            </button>
+            {showActions && (
+                <div className="absolute right-0 top-10 bg-zinc-900 border border-white/10 rounded-2xl p-2 shadow-2xl z-20 w-32 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { onEdit(); setShowActions(false); }} className="w-full text-left p-3 hover:bg-white/5 rounded-xl text-xs font-bold">Editar</button>
+                    <button onClick={() => { onDelete(); setShowActions(false); }} className="w-full text-left p-3 hover:bg-white/5 rounded-xl text-xs font-bold text-rose-500">Eliminar</button>
+                </div>
+            )}
+        </div>
       </div>
 
       <div>
@@ -148,9 +211,8 @@ function CategoryCard({ category }: any) {
       <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
          <div className="flex items-center gap-2">
             <PieChart className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-bold text-muted-foreground">12 Items</span>
+            <span className="text-xs font-bold text-muted-foreground">Categoría Activa</span>
          </div>
-         <span className="text-xs font-black">$450k</span>
       </div>
       
       <div 

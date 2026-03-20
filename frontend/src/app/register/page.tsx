@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 export default function RegisterPage() {
   const router = useRouter();
   useEffect(() => {
-    router.replace('/login');
+    router.replace('/login?mode=register');
   }, [router]);
   return null;
 }

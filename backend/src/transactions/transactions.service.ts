@@ -58,4 +58,32 @@ export class TransactionsService {
       orderBy: { fecha: 'desc' },
     });
   }
+
+  async update(userId: number, id: number, data: any) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id, account: { userId } }
+    });
+    if (!transaction) throw new BadRequestException('Transacción no encontrada');
+
+    return this.prisma.transaction.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async delete(userId: number, id: number) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id, account: { userId } }
+    });
+    if (!transaction) throw new BadRequestException('Transacción no encontrada');
+
+    return this.prisma.$transaction(async (tx: any) => {
+      const adjustment = transaction.tipo === 'INGRESO' ? -transaction.monto : transaction.monto;
+      await tx.account.update({
+        where: { id: transaction.accountId },
+        data: { saldoActual: { increment: adjustment } }
+      });
+      return tx.transaction.delete({ where: { id } });
+    });
+  }
 }

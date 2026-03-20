@@ -10,7 +10,8 @@ import {
   LogOut,
   Menu,
   X,
-  Shield
+  Shield,
+  Target
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -42,6 +43,7 @@ export default function DashboardLayout({
     { icon: ArrowUpRight, label: 'Transacciones', href: '/dashboard/transactions' },
     { icon: Layers, label: 'Categorías', href: '/dashboard/categories' },
     { icon: Repeat, label: 'Recurrentes', href: '/dashboard/recurring' },
+    { icon: Target, label: 'Presupuestos', href: '/dashboard/budgets' },
   ];
 
   if (user?.role === 'ADMIN') {

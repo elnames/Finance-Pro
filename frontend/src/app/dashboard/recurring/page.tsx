@@ -1,8 +1,62 @@
 'use client';
-import { Repeat, Plus, Bell, Calendar, ChevronRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import api from '@/services/api';
+import { Repeat, Plus, Bell, Calendar, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Modal } from '@/components/ui/modal';
 
 export default function RecurringPage() {
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newExp, setNewExp] = useState({ descripcion: '', monto: '', diaDelMes: '' });
+
+  const fetchExpenses = async () => {
+    try {
+      const res = await api.get('/recurring-expenses');
+      setExpenses(res.data);
+    } catch (error) {
+      console.error('Error fetching recurring expenses', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchExpenses();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post('/recurring-expenses', {
+        ...newExp,
+        monto: Number(newExp.monto) || 0,
+        diaDelMes: Number(newExp.diaDelMes) || 1
+      });
+      setIsModalOpen(false);
+      setNewExp({ descripcion: '', monto: '', diaDelMes: '' });
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error creating recurring expense', error);
+    }
+  };
+
+  const handleToggle = async (id: number, currentActive: boolean) => {
+    try {
+      await api.patch(`/recurring-expenses/${id}/toggle`, { isActive: !currentActive });
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error toggling expense', error);
+    }
+  };
+
+  if (loading) return <div className="animate-pulse">Sincronizando tus suscripciones...</div>;
+
+  const totalMonthly = expenses
+    .filter(e => e.isActive)
+    .reduce((acc, curr) => acc + curr.monto, 0);
+
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header className="flex justify-between items-center">
@@ -10,32 +64,103 @@ export default function RecurringPage() {
           <h1 className="text-4xl font-black tracking-tight mb-2">Pagos Recurrentes</h1>
           <p className="text-muted-foreground font-medium">Automatiza y monitorea tus suscripciones y gastos fijos.</p>
         </div>
-        <button className="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-3xl flex items-center gap-3 font-black shadow-2xl shadow-primary/20 transition-all active:scale-95">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-3xl flex items-center gap-3 font-black shadow-2xl shadow-primary/20 transition-all active:scale-95"
+        >
           <Plus className="w-6 h-6" />
           Nueva Suscripción
         </button>
       </header>
 
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title="Nueva Suscripción"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Descripción</label>
+            <input 
+              required
+              value={newExp.descripcion}
+              onChange={(e) => setNewExp({...newExp, descripcion: e.target.value})}
+              placeholder="Ej: Netflix, Gym, Alquiler..."
+              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Monto Mensual</label>
+                <input 
+                  type="number"
+                  required
+                  value={newExp.monto}
+                  onChange={(e) => setNewExp({...newExp, monto: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Día de Cobro</label>
+                <input 
+                  type="number"
+                  min="1"
+                  max="31"
+                  required
+                  value={newExp.diaDelMes}
+                  onChange={(e) => setNewExp({...newExp, diaDelMes: e.target.value})}
+                  placeholder="1-31"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                />
+              </div>
+          </div>
+
+          <button 
+            type="submit"
+            className="w-full bg-primary hover:bg-primary/90 text-white py-4 rounded-2xl font-black shadow-xl shadow-primary/30 transition-all active:scale-95 mt-4"
+          >
+            Guardar Suscripción
+          </button>
+        </form>
+      </Modal>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-            <RecurringCard title="Netflix" amount="15.990" nextDate="25 Mar" category="Ocio" iconColor="text-rose-500" />
-            <RecurringCard title="Alquiler Depto" amount="450.000" nextDate="01 Abr" category="Vivienda" iconColor="text-blue-500" />
-            <RecurringCard title="Internet Fibra" amount="22.500" nextDate="10 Abr" category="Servicios" iconColor="text-emerald-500" />
+            <AnimatePresence>
+                {expenses.map((exp) => (
+                    <RecurringCard 
+                        key={exp.id} 
+                        item={exp} 
+                        onToggle={() => handleToggle(exp.id, exp.isActive)} 
+                    />
+                ))}
+            </AnimatePresence>
+            {expenses.length === 0 && (
+                <div className="py-20 text-center glass rounded-[40px] border border-dashed border-white/20">
+                    <Repeat className="w-16 h-16 mx-auto mb-6 text-muted-foreground opacity-20" />
+                    <p className="text-xl font-bold">No tienes pagos recurrentes</p>
+                </div>
+            )}
         </div>
 
         <aside className="space-y-6">
             <div className="glass p-8 rounded-[40px] border border-white/5 bg-primary/5">
-                <h3 className="font-bold mb-4 flex items-center gap-2"><Bell className="w-5 h-5 text-primary" /> Próximos Vencimientos</h3>
+                <h3 className="font-bold mb-4 flex items-center gap-2"><Bell className="w-5 h-5 text-primary" /> Próximos Pagos</h3>
                 <div className="space-y-4">
-                    <UpcomingItem title="Luz" date="En 3 días" amount="34.000" />
-                    <UpcomingItem title="Spotify" date="En 5 días" amount="6.990" />
+                    {expenses.filter(e => e.isActive).slice(0, 3).map(e => (
+                        <UpcomingItem key={e.id} title={e.descripcion} day={e.diaDelMes} amount={e.monto} />
+                    ))}
+                    {expenses.filter(e => e.isActive).length === 0 && (
+                         <p className="text-xs text-muted-foreground italic">Sin pagos activos para este mes.</p>
+                    )}
                 </div>
             </div>
             
             <div className="glass p-8 rounded-[40px] border border-white/5">
-                <h3 className="font-bold mb-2">Total Mensual</h3>
-                <p className="text-4xl font-black tracking-tighter">$529.480</p>
-                <p className="text-xs text-muted-foreground mt-2 font-medium">Gastos fijos proyectados para Abril</p>
+                <h3 className="font-bold mb-2 text-sm uppercase tracking-widest text-muted-foreground">Total Mensual Proyectado</h3>
+                <p className="text-5xl font-black tracking-tighter text-primary">${totalMonthly.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-4 font-medium italic underline underline-offset-4 decoration-primary/30">Cálculo basado en {expenses.filter(e => e.isActive).length} suscripciones activas.</p>
             </div>
         </aside>
       </div>
@@ -43,47 +168,54 @@ export default function RecurringPage() {
   );
 }
 
-function RecurringCard({ title, amount, nextDate, category, iconColor }: any) {
+function RecurringCard({ item, onToggle }: any) {
     return (
         <motion.div 
-            whileHover={{ scale: 1.01, x: 5 }}
-            className="glass p-8 rounded-[36px] border border-white/5 flex items-center justify-between group cursor-pointer hover:border-white/10 transition-all"
+            layout
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className={`glass p-8 rounded-[36px] border flex items-center justify-between group cursor-pointer transition-all ${item.isActive ? 'border-white/5 hover:border-primary/30' : 'bg-black/40 grayscale opacity-60 border-white/5'}`}
         >
             <div className="flex items-center gap-6">
-                <div className={`w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 ${iconColor}`}>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all ${item.isActive ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white/5 text-muted-foreground border-white/10'}`}>
                     <Repeat className="w-7 h-7" />
                 </div>
                 <div>
-                    <h4 className="text-xl font-black tracking-tight">{title}</h4>
-                    <p className="text-xs font-bold text-muted-foreground uppercase">{category}</p>
+                    <h4 className="text-xl font-black tracking-tight">{item.descripcion}</h4>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Cobro los días {item.diaDelMes}</p>
                 </div>
             </div>
             
             <div className="flex items-center gap-10">
                 <div className="text-right">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Próximo Pago</p>
-                    <div className="flex items-center gap-2 text-sm font-bold">
-                        <Calendar className="w-4 h-4 opacity-40" /> {nextDate}
-                    </div>
-                </div>
-                <div className="text-right">
                     <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Monto</p>
-                    <p className="text-2xl font-black">${amount}</p>
+                    <p className="text-2xl font-black">${item.monto.toLocaleString()}</p>
                 </div>
-                <ChevronRight className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-all text-primary" />
+                
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle();
+                  }}
+                  className={`p-3 rounded-2xl transition-all ${item.isActive ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20' : 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20'}`}
+                  title={item.isActive ? "Desactivar" : "Activar"}
+                >
+                    {item.isActive ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                </button>
             </div>
         </motion.div>
     )
 }
 
-function UpcomingItem({ title, date, amount }: any) {
+function UpcomingItem({ title, day, amount }: any) {
     return (
         <div className="flex justify-between items-center p-4 rounded-2xl bg-white/5 border border-white/5">
             <div>
                 <p className="text-sm font-bold">{title}</p>
-                <p className="text-[10px] font-medium text-muted-foreground">{date}</p>
+                <p className="text-[10px] font-medium text-muted-foreground">Día {day}</p>
             </div>
-            <p className="font-black text-sm">${amount}</p>
+            <p className="font-black text-sm text-primary">${amount.toLocaleString()}</p>
         </div>
     )
 }

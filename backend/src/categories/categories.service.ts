@@ -25,4 +25,17 @@ export class CategoriesService {
       where: { userId, tipo },
     });
   }
+
+  async update(userId: number, id: number, data: any) {
+    return this.prisma.category.update({
+      where: { id, userId },
+      data,
+    });
+  }
+
+  async delete(userId: number, id: number) {
+    return this.prisma.category.delete({
+      where: { id, userId },
+    });
+  }
 }

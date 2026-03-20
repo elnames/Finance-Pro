@@ -31,10 +31,6 @@
 .DS_Store
 Thumbs.db
 
-# Project Specific (Requested by user)
-skills/
-CONTEXTO_IA.md
-
 # IDEs
 .vscode/
 .idea/

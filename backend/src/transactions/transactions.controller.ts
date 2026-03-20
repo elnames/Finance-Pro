@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-// import { TransactionType } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard)
 @Controller('transactions')
@@ -19,5 +18,15 @@ export class TransactionsController {
   @Get()
   findAll(@Request() req: any) {
     return this.transactionsService.findAll(req.user.id);
+  }
+
+  @Patch(':id')
+  update(@Request() req: any, @Param('id', ParseIntPipe) id: number, @Body() data: any) {
+    return this.transactionsService.update(req.user.id, id, data);
+  }
+
+  @Delete(':id')
+  remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.transactionsService.delete(req.user.id, id);
   }
 }

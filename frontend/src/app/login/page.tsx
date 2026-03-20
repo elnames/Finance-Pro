@@ -26,6 +26,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const message = searchParams.get('message');
+  const initialMode = searchParams.get('mode');
   const { user, login } = useAuth();
 
   // Auto-redirect if already logged in
@@ -73,6 +74,7 @@ export default function LoginPage() {
       onGoogleSignIn={() => alert("Google Sign In - Próximamente")}
       error={error}
       loading={loading}
+      defaultRegister={initialMode === 'register'}
     />
   );
 }

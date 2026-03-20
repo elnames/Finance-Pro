@@ -1,9 +1,12 @@
-import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
@@ -21,5 +24,10 @@ export class AdminController {
   @Patch('users/:id')
   update(@Param('id') id: string, @Body() data: any) {
     return this.adminService.updateUser(+id, data);
+  }
+
+  @Delete('users/:id')
+  remove(@Param('id') id: string) {
+    return this.adminService.deleteUser(+id);
   }
 }

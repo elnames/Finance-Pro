@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '@/services/api';
-import { Shield, User, Crown, Search, Check, X, ArrowUpRight, Edit2, Key, Info } from 'lucide-react';
+import { Shield, User, Crown, Search, Check, X, ArrowUpRight, Edit2, Key, Info, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Modal } from '@/components/ui/modal';
+import { RoleGate } from '@/components/auth/RoleGate';
 
 export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -57,6 +58,17 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: number, nombre: string) => {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar al usuario "${nombre}"? Esta acción no se puede deshacer.`)) {
+      try {
+        await api.delete(`/admin/users/${userId}`);
+        fetchUsers();
+      } catch (error) {
+        console.error('Error deleting user', error);
+      }
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     u.nombre.toLowerCase().includes(search.toLowerCase()) || 
     u.email.toLowerCase().includes(search.toLowerCase())
@@ -65,7 +77,8 @@ export default function AdminPage() {
   if (loading) return <div className="animate-pulse">Cargando panel de administración...</div>;
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <RoleGate allowedRoles={['ADMIN']}>
+      <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header className="flex justify-between items-end">
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -150,6 +163,13 @@ export default function AdminPage() {
                                     title="Downgrade to Free"
                                 >
                                     <X className="w-5 h-5" />
+                                </button>
+                                <button 
+                                    onClick={() => handleDeleteUser(u.id, u.nombre)}
+                                    className="p-2 hover:bg-rose-500/10 rounded-xl text-rose-500 transition-all active:scale-95"
+                                    title="Delete User"
+                                >
+                                    <Trash2 className="w-5 h-5" />
                                 </button>
                             </div>
                         </td>
@@ -239,6 +259,7 @@ export default function AdminPage() {
             </div>
         </form>
       </Modal>
-    </div>
+      </div>
+    </RoleGate>
   );
 }

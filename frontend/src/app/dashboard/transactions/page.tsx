@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '@/services/api';
-import { ArrowUpRight, ArrowDownRight, Search, Filter, Plus, Clock } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Search, Filter, Plus, Clock, MoreVertical, Download, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Modal } from '@/components/ui/modal';
 
@@ -12,12 +12,20 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTx, setNewTx] = useState({ 
-    monto: 0, 
+    monto: '', 
     tipo: 'GASTO', 
     descripcion: '', 
     accountId: '', 
     categoryId: '' 
   });
+  const [editTx, setEditTx] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Filtros
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterAccount, setFilterAccount] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -45,17 +53,74 @@ export default function TransactionsPage() {
     try {
       await api.post('/transactions', {
         ...newTx,
-        monto: Number(newTx.monto),
+        monto: Number(newTx.monto) || 0,
         accountId: Number(newTx.accountId),
         categoryId: Number(newTx.categoryId)
       });
       setIsModalOpen(false);
-      setNewTx({ monto: 0, tipo: 'GASTO', descripcion: '', accountId: '', categoryId: '' });
+      setNewTx({ monto: '', tipo: 'GASTO', descripcion: '', accountId: '', categoryId: '' });
       fetchData();
     } catch (error) {
       console.error('Error creating transaction', error);
     }
   };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('¿Eliminar esta transacción? El saldo de la cuenta será reversado.')) {
+      try {
+        await api.delete(`/transactions/${id}`);
+        fetchData();
+      } catch (error) {
+        console.error('Error deleting transaction', error);
+      }
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.patch(`/transactions/${editTx.id}`, {
+        descripcion: editTx.descripcion,
+        monto: Number(editTx.monto) || 0,
+        tipo: editTx.tipo,
+        categoryId: Number(editTx.categoryId)
+      });
+      setIsEditModalOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error updating transaction', error);
+    }
+  };
+
+  const exportCSV = () => {
+    const headers = ['Fecha', 'Descripción', 'Tipo', 'Monto', 'Categoría', 'Cuenta'];
+    const rows = filteredTransactions.map(tx => [
+      new Date(tx.fecha).toLocaleDateString(),
+      tx.descripcion,
+      tx.tipo,
+      tx.monto,
+      tx.category?.nombre || 'General',
+      tx.account?.nombre || 'N/A'
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `transacciones_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filteredTransactions = transactions.filter(tx => {
+    const matchesSearch = tx.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory ? tx.categoryId === Number(filterCategory) : true;
+    const matchesAccount = filterAccount ? tx.accountId === Number(filterAccount) : true;
+    return matchesSearch && matchesCategory && matchesAccount;
+  });
 
   if (loading) return <div className="animate-pulse">Sincronizando movimientos...</div>;
 
@@ -71,6 +136,8 @@ export default function TransactionsPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <input 
               placeholder="Buscar movimientos..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:border-primary/50 transition-all font-medium"
             />
           </div>
@@ -84,10 +151,54 @@ export default function TransactionsPage() {
         </div>
       </header>
 
+      <div className="flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex gap-4 items-center">
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 text-xs font-black uppercase tracking-widest px-6 py-3 rounded-xl border transition-all ${showFilters ? 'bg-primary border-primary text-white' : 'bg-white/5 border-white/5 text-muted-foreground hover:text-foreground'}`}
+              >
+                <Filter className="w-4 h-4" /> {showFilters ? 'Ocultar Filtros' : 'Filtrar'}
+              </button>
+              
+              {showFilters && (
+                  <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex gap-4">
+                      <select 
+                        value={filterCategory} 
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:border-primary/50"
+                      >
+                          <option value="" className="bg-zinc-900">Todas las Categorías</option>
+                          {categories.map(cat => <option key={cat.id} value={cat.id} className="bg-zinc-900">{cat.nombre}</option>)}
+                      </select>
+                      <select 
+                        value={filterAccount} 
+                        onChange={(e) => setFilterAccount(e.target.value)}
+                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:border-primary/50"
+                      >
+                          <option value="" className="bg-zinc-900">Todas las Cuentas</option>
+                          {accounts.map(acc => <option key={acc.id} value={acc.id} className="bg-zinc-900">{acc.nombre}</option>)}
+                      </select>
+                      {(filterCategory || filterAccount || searchTerm) && (
+                          <button onClick={() => { setFilterCategory(''); setFilterAccount(''); setSearchTerm(''); }} className="p-2 hover:bg-rose-500/10 text-rose-500 rounded-lg transition-all" title="Limpiar Filtros">
+                              <X className="w-5 h-5" />
+                          </button>
+                      )}
+                  </motion.div>
+              )}
+          </div>
+
+          <button 
+            onClick={exportCSV}
+            className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors bg-white/5 px-6 py-3 rounded-xl border border-white/5"
+          >
+            <Download className="w-4 h-4" /> Exportar CSV
+          </button>
+      </div>
+
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        title="Nueva Movimiento"
+        title="Nuevo Movimiento"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
@@ -108,7 +219,7 @@ export default function TransactionsPage() {
                   type="number"
                   required
                   value={newTx.monto}
-                  onChange={(e) => setNewTx({...newTx, monto: Number(e.target.value)})}
+                  onChange={(e) => setNewTx({...newTx, monto: e.target.value})}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all shadow-inner"
                 />
               </div>
@@ -165,21 +276,54 @@ export default function TransactionsPage() {
         </form>
       </Modal>
 
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Editar Transacción">
+        {editTx && (
+            <form onSubmit={handleEditSubmit} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Tipo</label>
+                        <select value={editTx.tipo} onChange={(e) => setEditTx({...editTx, tipo: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold">
+                            <option value="GASTO" className="bg-zinc-900">Gasto</option>
+                            <option value="INGRESO" className="bg-zinc-900">Ingreso</option>
+                        </select>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Monto</label>
+                        <input required type="number" value={editTx.monto} onChange={(e) => setEditTx({...editTx, monto: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold" />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Descripción</label>
+                    <input required value={editTx.descripcion} onChange={(e) => setEditTx({...editTx, descripcion: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold" />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Categoría</label>
+                    <select required value={editTx.categoryId} onChange={(e) => setEditTx({...editTx, categoryId: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold">
+                        {categories.map(cat => <option key={cat.id} value={cat.id} className="bg-zinc-900">{cat.nombre}</option>)}
+                    </select>
+                </div>
+                <button type="submit" className="w-full bg-primary py-4 rounded-2xl font-black mt-4">Guardar Cambios</button>
+            </form>
+        )}
+      </Modal>
+
       <section className="glass rounded-[40px] border border-white/5 overflow-hidden shadow-2xl">
         <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
           <h3 className="text-xl font-bold flex items-center gap-3"><Clock className="w-6 h-6 text-primary" /> Recientes</h3>
-          <button className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-            <Filter className="w-4 h-4" /> Filtrar
-          </button>
         </div>
 
         <div className="divide-y divide-white/5">
-          {transactions.map((tx) => (
-            <TransactionRow key={tx.id} transaction={tx} />
+          {filteredTransactions.map((tx) => (
+            <TransactionRow 
+              key={tx.id} 
+              transaction={tx} 
+              onDelete={() => handleDelete(tx.id)}
+              onEdit={() => { setEditTx(tx); setIsEditModalOpen(true); }}
+            />
           ))}
-          {transactions.length === 0 && (
+          {filteredTransactions.length === 0 && (
              <div className="py-32 text-center">
-                 <p className="text-muted-foreground font-medium">No hay transacciones registradas este mes.</p>
+                 <p className="text-muted-foreground font-medium">No se encontraron movimientos con los filtros actuales.</p>
              </div>
           )}
         </div>
@@ -188,7 +332,8 @@ export default function TransactionsPage() {
   );
 }
 
-function TransactionRow({ transaction }: any) {
+function TransactionRow({ transaction, onDelete, onEdit }: any) {
+  const [showActions, setShowActions] = useState(false);
   const isPositive = transaction.tipo === 'INGRESO';
   return (
     <motion.div 
@@ -221,6 +366,17 @@ function TransactionRow({ transaction }: any) {
             {isPositive ? '+' : '-'}${Math.abs(transaction.monto).toLocaleString()}
           </p>
           <p className="text-[10px] font-black text-muted-foreground uppercase opacity-40">Pago confirmado</p>
+        </div>
+        <div className="relative">
+            <button onClick={() => setShowActions(!showActions)} className="p-2 hover:bg-white/5 rounded-full transition-colors text-muted-foreground">
+                <MoreVertical className="w-5 h-5" />
+            </button>
+            {showActions && (
+                <div className="absolute right-0 top-10 bg-zinc-900 border border-white/10 rounded-2xl p-2 shadow-2xl z-20 w-32 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { onEdit(); setShowActions(false); }} className="w-full text-left p-3 hover:bg-white/5 rounded-xl text-xs font-bold">Editar</button>
+                    <button onClick={() => { onDelete(); setShowActions(false); }} className="w-full text-left p-3 hover:bg-white/5 rounded-xl text-xs font-bold text-rose-500">Eliminar</button>
+                </div>
+            )}
         </div>
       </div>
     </motion.div>

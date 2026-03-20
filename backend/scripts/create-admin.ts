@@ -5,7 +5,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   const email = 'admin@financepro.com';
-  const password = 'admin'; 
+  const nombre = 'Administrador Sistema';
+  const password = 'AdminPassword123!';
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const admin = await prisma.user.upsert({
@@ -13,18 +14,18 @@ async function main() {
     update: {
       role: 'ADMIN',
       plan: 'ELITE',
+      password: hashedPassword,
     },
     create: {
       email,
-      nombre: 'Administrador',
+      nombre,
       password: hashedPassword,
       role: 'ADMIN',
       plan: 'ELITE',
     },
   });
 
-  console.log(`Usuario Admin creado/actualizado: ${admin.email}`);
-  console.log(`Password: ${password}`);
+  console.log('Admin user created/updated:', admin.email);
 }
 
 main()

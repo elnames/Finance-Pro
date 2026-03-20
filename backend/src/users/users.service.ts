@@ -31,4 +31,17 @@ export class UsersService {
       },
     });
   }
+
+  async update(id: number, data: any) {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async delete(id: number) {
+    return this.prisma.user.delete({
+      where: { id },
+    });
+  }
 }

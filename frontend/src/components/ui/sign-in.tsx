@@ -33,6 +33,7 @@ interface SignInPageProps {
   onCreateAccount?: () => void;
   error?: string | null;
   loading?: boolean;
+  defaultRegister?: boolean;
 }
 
 // --- SUB-COMPONENTS ---
@@ -65,10 +66,11 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   onGoogleSignIn,
   onResetPassword,
   error,
-  loading
+  loading,
+  defaultRegister = false
 }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(defaultRegister);
 
   return (
     <div className="h-[100dvh] flex flex-col md:flex-row bg-background w-[100dvw] overflow-hidden">

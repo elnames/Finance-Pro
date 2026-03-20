@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Delete, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -20,6 +20,11 @@ export class AccountsController {
   @Get(':id')
   findOne(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
     return this.accountsService.findOne(req.user.id, id);
+  }
+
+  @Patch(':id')
+  update(@Request() req: any, @Param('id', ParseIntPipe) id: number, @Body() data: any) {
+    return this.accountsService.update(req.user.id, id, data);
   }
 
   @Delete(':id')

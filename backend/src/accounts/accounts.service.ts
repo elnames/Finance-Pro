@@ -31,4 +31,11 @@ export class AccountsService {
       where: { id, userId },
     });
   }
+
+  async update(userId: number, id: number, data: any) {
+    return this.prisma.account.update({
+      where: { id, userId },
+      data,
+    });
+  }
 }

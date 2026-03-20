@@ -8,6 +8,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { RecurringExpensesModule } from './recurring-expenses/recurring-expenses.module';
 import { AdminModule } from './admin/admin.module';
+import { BudgetsModule } from './budgets/budgets.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AdminModule } from './admin/admin.module';
     TransactionsModule,
     RecurringExpensesModule,
     AdminModule,
+    BudgetsModule,
   ],
   controllers: [],
   providers: [],

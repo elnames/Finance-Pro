@@ -7,21 +7,17 @@ datasource db {
   url      = "sqlserver://100.117.249.82:1433;database=finanzas_pro_db;user=sa;password=Interestelar01!;encrypt=true;trustServerCertificate=true;"
 }
 
-// SQL Server no soporta Enums nativos en Prisma, usamos String
-// tipos: INGRESO, GASTO
-
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  nombre    String
-  role      String   @default("USER") // USER, ADMIN
-  plan      String   @default("FREE") // FREE, PREMIUM, ELITE
-  createdAt DateTime @default(now())
-  
+  id                Int                @id @default(autoincrement())
+  email             String             @unique
+  password          String
+  nombre            String
+  createdAt         DateTime           @default(now())
+  plan              String             @default("FREE")
+  role              String             @default("USER")
   accounts          Account[]
-  recurringExpenses RecurringExpense[]
   categories        Category[]
+  recurringExpenses RecurringExpense[]
 }
 
 model Account {
@@ -34,33 +30,43 @@ model Account {
 }
 
 model Category {
-  id          Int             @id @default(autoincrement())
-  nombre      String
-  tipo        String          // INGRESO o GASTO
-  colorHex    String?
-  userId      Int
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           Int           @id @default(autoincrement())
+  nombre       String
+  tipo         String
+  colorHex     String?
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  budgets      Budget[]
 }
 
 model Transaction {
-  id          Int             @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   monto       Float
-  tipo        String          // INGRESO o GASTO
-  fecha       DateTime        @default(now())
+  tipo        String
+  fecha       DateTime @default(now())
   descripcion String
   accountId   Int
-  account     Account         @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   categoryId  Int
-  category    Category        @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  account     Account  @relation(fields: [accountId], references: [id], onUpdate: NoAction)
+  category    Category @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
 }
 
 model RecurringExpense {
   id          Int     @id @default(autoincrement())
   descripcion String
   monto       Float
-  diaDelMes   Int     
+  diaDelMes   Int
   isActive    Boolean @default(true)
   userId      Int
   user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Budget {
+  id         Int      @id @default(autoincrement())
+  monto      Float
+  mes        Int
+  anio       Int
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 }

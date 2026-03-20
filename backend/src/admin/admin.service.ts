@@ -39,4 +39,10 @@ export class AdminService {
       data: updateData,
     });
   }
+
+  async deleteUser(id: number) {
+    return this.prisma.user.delete({
+      where: { id },
+    });
+  }
 }
