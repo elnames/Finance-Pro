@@ -1,4 +1,4 @@
-# 💰 Finance Pro - "Sober Dark" Financial Management
+# 💰 Finance Pro - Financial Management
 
 ![Finance Pro Hero](./assets/hero.png)
 
