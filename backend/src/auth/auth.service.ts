@@ -1,10 +1,13 @@
-import { Injectable, UnauthorizedException, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
+  // A09 - Security Logging Failures: Use structured Logger instead of console.log
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
@@ -16,6 +19,8 @@ export class AuthService {
       const { password, ...result } = user;
       return result;
     }
+    // A09 - Log failed login attempts without exposing details
+    this.logger.warn(`Failed login attempt for email: ${email}`);
     return null;
   }
 
@@ -33,7 +38,7 @@ export class AuthService {
     };
   }
 
-  async register(userData: any) {
+  async register(userData: { nombre: string; email: string; password: string }) {
     const existingUser = await this.usersService.findOne(userData.email);
     if (existingUser) {
       throw new ConflictException('El correo ya está registrado');
@@ -47,7 +52,8 @@ export class AuthService {
         password: hashedPassword,
       });
 
-      console.log('User created:', user.id);
+      // A09 - Log user creation without sensitive info
+      this.logger.log(`New user registered: id=${user.id}`);
 
       // Onboarding: Crear categorías por defecto
       const defaultCategories = [
@@ -64,8 +70,7 @@ export class AuthService {
           // @ts-ignore
           await this.usersService.createDefaultCategory(user.id, cat);
         } catch (catError) {
-          console.error(`Error creating category ${cat.nombre} for user ${user.id}:`, catError);
-          // No lanzamos error para no romper el registro si fallan las categorías
+          this.logger.warn(`Could not create default category "${cat.nombre}" for user ${user.id}`);
         }
       }
 
@@ -81,7 +86,8 @@ export class AuthService {
         },
       };
     } catch (error) {
-      console.error('Registration error detail:', error);
+      // A09 - Log error without leaking stack traces to clients
+      this.logger.error(`Registration error for email ${userData.email}: ${(error as any).message}`);
       throw new InternalServerErrorException('Error al crear el usuario. Inténtalo de nuevo.');
     }
   }
@@ -91,8 +97,8 @@ export class AuthService {
     let user = await this.usersService.findOne(demoEmail);
 
     if (!user) {
-      // Crear usuario demo si no existe
-      const hashedPassword = await bcrypt.hash('demo123', 10);
+      // A07 - Use secure random demo password (not predictable 'demo123')
+      const hashedPassword = await bcrypt.hash(Math.random().toString(36) + Date.now().toString(36), 10);
       user = await this.usersService.create({
         email: demoEmail,
         nombre: 'Inversionista Demo',
@@ -101,7 +107,6 @@ export class AuthService {
         plan: 'PREMIUM',
       });
 
-      // Crear categorías y datos iniciales para la demo
       const demoData = [
         { nombre: 'Salario Corporativo', tipo: 'INGRESO', colorHex: '#10b981' },
         { nombre: 'Dividendos', tipo: 'INGRESO', colorHex: '#3b82f6' },

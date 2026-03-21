@@ -12,7 +12,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     UsersModule,
     PassportModule,
     JwtModule.register({
-      secret: 'SECRET_KEY_FINANZAS_PRO', // Debería estar en .env
+      // A02 - Cryptographic Failures: JWT secret from environment variable
+      secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
   ],

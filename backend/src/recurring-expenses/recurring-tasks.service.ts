@@ -13,7 +13,6 @@ export class RecurringTasksService {
     this.logger.log('Procesando gastos recurrentes...');
     const today = new Date().getDate();
 
-    // Buscar gastos recurrentes activos que correspondan al día de hoy
     const recurringExpenses = await this.prisma.recurringExpense.findMany({
       where: {
         diaDelMes: today,
@@ -23,7 +22,12 @@ export class RecurringTasksService {
         user: {
           include: {
             accounts: {
-              take: 1, // Por simplicidad, tomamos la primera cuenta del usuario
+              take: 1,
+            },
+            // A04 - Insecure Design: Fetch user's first GASTO category to avoid hardcoded ID
+            categories: {
+              where: { tipo: 'GASTO' },
+              take: 1,
             },
           },
         },
@@ -32,22 +36,30 @@ export class RecurringTasksService {
 
     for (const expense of recurringExpenses) {
       const account = (expense as any).user.accounts[0];
-      if (!account) continue;
+      if (!account) {
+        this.logger.warn(`No account found for user ${expense.userId}, skipping recurring expense ${expense.id}`);
+        continue;
+      }
+
+      // A04 - Insecure Design: Use the user's own GASTO category instead of hardcoded ID 1
+      const category = (expense as any).user.categories[0];
+      if (!category) {
+        this.logger.warn(`No GASTO category found for user ${expense.userId}, skipping recurring expense ${expense.id}`);
+        continue;
+      }
 
       try {
         await this.prisma.$transaction(async (tx: any) => {
-          // Crear la transacción
           await tx.transaction.create({
             data: {
               monto: expense.monto,
               tipo: 'GASTO',
               descripcion: `[Automático] ${expense.descripcion}`,
               accountId: account.id,
-              categoryId: 1, // Podríamos mejorar buscando una categoría 'General' o similar
+              categoryId: category.id,
             },
           });
 
-          // Actualizar saldo
           await tx.account.update({
             where: { id: account.id },
             data: { saldoActual: { decrement: expense.monto } },

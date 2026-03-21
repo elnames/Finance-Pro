@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, Patch, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { RecurringExpensesService } from './recurring-expenses.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateRecurringExpenseDto } from './dto/create-recurring-expense.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('recurring-expenses')
@@ -8,7 +9,7 @@ export class RecurringExpensesController {
   constructor(private readonly recurringExpensesService: RecurringExpensesService) {}
 
   @Post()
-  create(@Request() req: any, @Body() data: { descripcion: string; monto: number; diaDelMes: number }) {
+  create(@Request() req: any, @Body() data: CreateRecurringExpenseDto) {
     return this.recurringExpensesService.create(req.user.id, data);
   }
 

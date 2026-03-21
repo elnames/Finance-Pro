@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -13,6 +15,19 @@ import { BudgetsModule } from './budgets/budgets.module';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    // A07 - Identification & Authentication Failures: Rate limiting to prevent brute force
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,   // 1 second
+        limit: 10,   // max 10 req/s per IP
+      },
+      {
+        name: 'medium',
+        ttl: 60000,  // 1 minute
+        limit: 100,  // max 100 req/min per IP
+      },
+    ]),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -24,6 +39,12 @@ import { BudgetsModule } from './budgets/budgets.module';
     BudgetsModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    // Apply rate limiting globally
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

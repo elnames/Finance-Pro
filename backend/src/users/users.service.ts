@@ -12,8 +12,17 @@ export class UsersService {
   }
 
   async findOneById(id: number): Promise<any | null> {
+    // A02 - Cryptographic Failures: Never expose password hash to clients
     return this.prisma.user.findUnique({
       where: { id },
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        role: true,
+        plan: true,
+        createdAt: true,
+      },
     });
   }
 
@@ -36,6 +45,13 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data,
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        role: true,
+        plan: true,
+      },
     });
   }
 
