@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
-  url      = "sqlserver://100.117.249.82:1433;database=finanzas_pro_db;user=sa;password=Interestelar01!;encrypt=true;trustServerCertificate=true;"
+  url      = env("DATABASE_URL")
 }
 
 model User {

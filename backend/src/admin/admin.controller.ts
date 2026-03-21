@@ -1,8 +1,10 @@
-import { Controller, Get, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Body, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { UpdatePlanDto } from './dto/update-plan.dto';
+import { AdminUpdateUserDto } from './dto/update-user.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -15,19 +17,20 @@ export class AdminController {
     return this.adminService.findAll();
   }
 
+  // A03 - Injection: Validate plan value via DTO whitelist
   @Patch('users/:id/plan')
-  updatePlan(@Param('id') id: string, @Body('plan') plan: string) {
-    const planValue = typeof plan === 'object' ? (plan as any).plan : plan;
-    return this.adminService.updatePlan(+id, planValue);
+  updatePlan(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePlanDto) {
+    return this.adminService.updatePlan(id, dto.plan);
   }
 
+  // A01 - Broken Access Control: Strict DTO prevents mass assignment of arbitrary fields
   @Patch('users/:id')
-  update(@Param('id') id: string, @Body() data: any) {
-    return this.adminService.updateUser(+id, data);
+  update(@Param('id', ParseIntPipe) id: number, @Body() data: AdminUpdateUserDto) {
+    return this.adminService.updateUser(id, data);
   }
 
   @Delete('users/:id')
-  remove(@Param('id') id: string) {
-    return this.adminService.deleteUser(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.deleteUser(id);
   }
 }

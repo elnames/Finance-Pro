@@ -9,8 +9,9 @@ export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) {}
 
   @Post()
+  // A01 - Broken Access Control: use req.user.id (was incorrectly req.user.userId)
   create(@Request() req: any, @Body() createBudgetDto: CreateBudgetDto) {
-    return this.budgetsService.create(req.user.userId, createBudgetDto);
+    return this.budgetsService.create(req.user.id, createBudgetDto);
   }
 
   @Get()
@@ -19,11 +20,11 @@ export class BudgetsController {
     @Query('mes', ParseIntPipe) mes: number,
     @Query('anio', ParseIntPipe) anio: number,
   ) {
-    return this.budgetsService.findAll(req.user.userId, mes, anio);
+    return this.budgetsService.findAll(req.user.id, mes, anio);
   }
 
   @Delete(':id')
   remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.budgetsService.remove(req.user.userId, id);
+    return this.budgetsService.remove(req.user.id, id);
   }
 }
