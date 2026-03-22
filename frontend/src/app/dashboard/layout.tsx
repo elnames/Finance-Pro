@@ -20,6 +20,35 @@ import { useEffect } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
 
+const AVATAR_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b',
+  '#10b981', '#3b82f6', '#ef4444', '#14b8a6',
+];
+
+function LocalAvatar({ name, className }: { name: string; className?: string }) {
+  const first = (name ?? 'U').charAt(0).toUpperCase();
+  const colorIndex = (name ?? 'U').charCodeAt(0) % AVATAR_COLORS.length;
+  const bg = AVATAR_COLORS[colorIndex];
+  return (
+    <div
+      className={className}
+      style={{
+        background: bg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 900,
+        fontSize: '0.85em',
+        color: '#fff',
+        userSelect: 'none',
+      }}
+      aria-label={name}
+    >
+      {first}
+    </div>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -143,11 +172,7 @@ export default function DashboardLayout({
                 `}
             >
                 <div className="w-10 h-10 rounded-2xl bg-zinc-800 border border-white/10 overflow-hidden flex-shrink-0">
-                    <img 
-                      src={`https://ui-avatars.com/api/?name=${user?.nombre || 'User'}&background=333&color=fff`} 
-                      alt="avatar" 
-                      className="w-full h-full object-cover"
-                    />
+                    <LocalAvatar name={user?.nombre || 'U'} className="w-full h-full rounded-2xl" />
                 </div>
                 <div 
                   className={`
@@ -193,7 +218,7 @@ export default function DashboardLayout({
           <div className="flex items-center gap-2">
             {!user?.isDemo && (
               <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="w-8 h-8 rounded-full overflow-hidden border border-white/10">
-                <img src={`https://ui-avatars.com/api/?name=${user?.nombre || 'U'}&background=333&color=fff`} alt="avatar" className="w-full h-full object-cover" />
+                <LocalAvatar name={user?.nombre || 'U'} className="w-full h-full rounded-full" />
               </button>
             )}
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 bg-white/5 rounded-lg border border-white/10">

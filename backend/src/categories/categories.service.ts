@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateCategoryDto } from './dto/create-category.dto';
 
 @Injectable()
 export class CategoriesService {
@@ -26,7 +27,7 @@ export class CategoriesService {
     });
   }
 
-  async update(userId: number, id: number, data: any) {
+  async update(userId: number, id: number, data: Partial<CreateCategoryDto>) {
     return this.prisma.category.update({
       where: { id, userId },
       data,

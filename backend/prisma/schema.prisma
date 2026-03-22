@@ -17,6 +17,7 @@ model User {
   role              String             @default("USER")
   accounts          Account[]
   categories        Category[]
+  budgets           Budget[]
   recurringExpenses RecurringExpense[]
 }
 
@@ -27,6 +28,8 @@ model Account {
   userId       Int
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+
+  @@index([userId])
 }
 
 model Category {
@@ -38,6 +41,8 @@ model Category {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   budgets      Budget[]
+
+  @@index([userId])
 }
 
 model Transaction {
@@ -48,8 +53,12 @@ model Transaction {
   descripcion String
   accountId   Int
   categoryId  Int
-  account     Account  @relation(fields: [accountId], references: [id], onUpdate: NoAction)
-  category    Category @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([accountId])
+  @@index([categoryId])
+  @@index([fecha])
 }
 
 model RecurringExpense {
@@ -60,6 +69,8 @@ model RecurringExpense {
   isActive    Boolean @default(true)
   userId      Int
   user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Budget {
@@ -68,5 +79,11 @@ model Budget {
   mes        Int
   anio       Int
   categoryId Int
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([userId, mes, anio])
 }

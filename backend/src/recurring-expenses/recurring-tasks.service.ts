@@ -48,6 +48,15 @@ export class RecurringTasksService {
         continue;
       }
 
+      // Insufficient balance guard: skip if account cannot cover the expense
+      if (account.saldoActual < expense.monto) {
+        this.logger.warn(
+          `Insufficient balance for recurring expense ${expense.id} (user ${expense.userId}). ` +
+          `Required: ${expense.monto}, Available: ${account.saldoActual}. Skipping.`,
+        );
+        continue;
+      }
+
       try {
         await this.prisma.$transaction(async (tx: any) => {
           await tx.transaction.create({

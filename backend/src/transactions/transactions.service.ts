@@ -1,11 +1,29 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class TransactionsService {
   private readonly logger = new Logger(TransactionsService.name);
 
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Validates that a GASTO transaction will not drive the account balance negative.
+   * INGRESO transactions always pass this check.
+   */
+  private validateSufficientBalance(
+    account: { id: number; saldoActual: number },
+    tipo: string,
+    monto: number,
+  ): void {
+    if (tipo === 'GASTO' && account.saldoActual < monto) {
+      throw new BadRequestException(
+        `Saldo insuficiente en la cuenta. Saldo actual: ${account.saldoActual}, monto requerido: ${monto}`,
+      );
+    }
+  }
 
   /**
    * Registra una transacción y actualiza el saldo de la cuenta de forma ATÓMICA (ACID).
@@ -24,8 +42,11 @@ export class TransactionsService {
       throw new BadRequestException('La categoría no existe o no pertenece a este usuario');
     }
 
-    // 2. Ejecución con Transacción ACID de Prisma
-    return this.prisma.$transaction(async (tx: any) => {
+    // 2. Insufficient balance guard
+    this.validateSufficientBalance(account, data.tipo, data.monto);
+
+    // 3. Ejecución con Transacción ACID de Prisma
+    return this.prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       // Registrar la transacción
       const transaction = await tx.transaction.create({
         data,
@@ -33,7 +54,7 @@ export class TransactionsService {
 
       // Calcular ajuste de saldo
       const adjustment = data.tipo === 'INGRESO' ? data.monto : -data.monto;
-      
+
       // Actualizar el saldoActual de la Account
       const updatedAccount = await tx.account.update({
         where: { id: data.accountId },
@@ -46,7 +67,7 @@ export class TransactionsService {
     });
   }
 
-  async findAll(userId: number) {
+  async findAll(userId: number, skip = 0, take = 50) {
     return this.prisma.transaction.findMany({
       where: {
         account: { userId },
@@ -56,29 +77,45 @@ export class TransactionsService {
         category: true,
       },
       orderBy: { fecha: 'desc' },
+      skip,
+      take,
     });
   }
 
-  async update(userId: number, id: number, data: any) {
-    // 1. Fetch the original transaction to capture its current balance impact
+  async update(userId: number, id: number, data: UpdateTransactionDto) {
+    // 1. Fetch the original transaction and its account to capture current state
     const original = await this.prisma.transaction.findFirst({
       where: { id, account: { userId } },
+      include: { account: true },
     });
     if (!original) throw new BadRequestException('Transacción no encontrada');
 
-    // 2. Wrap the update and both balance adjustments in a single ACID transaction
-    return this.prisma.$transaction(async (tx: any) => {
-      // 3. Reverse the original balance impact
-      const reversal = original.tipo === 'INGRESO' ? -original.monto : original.monto;
+    // 2. Calculate net balance change and validate sufficient funds
+    const newMonto = data.monto !== undefined ? data.monto : original.monto;
+    const newTipo = data.tipo !== undefined ? data.tipo : original.tipo;
+
+    // Net effect: reverse old impact then apply new impact
+    const reversal = original.tipo === 'INGRESO' ? -original.monto : original.monto;
+    const adjustment = newTipo === 'INGRESO' ? newMonto : -newMonto;
+    const netChange = reversal + adjustment;
+
+    // If net change is negative (balance decreasing), verify sufficient funds
+    const currentBalance = original.account.saldoActual;
+    if (netChange < 0 && currentBalance + netChange < 0) {
+      throw new BadRequestException(
+        `Saldo insuficiente para esta modificación. Saldo actual: ${currentBalance}, cambio neto: ${netChange}`,
+      );
+    }
+
+    // 3. Wrap the update and both balance adjustments in a single ACID transaction
+    return this.prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
+      // 4. Reverse the original balance impact
       await tx.account.update({
         where: { id: original.accountId },
         data: { saldoActual: { increment: reversal } },
       });
 
-      // 4. Apply the new balance impact using the updated monto/tipo (falling back to original values)
-      const newMonto = data.monto !== undefined ? data.monto : original.monto;
-      const newTipo = data.tipo !== undefined ? data.tipo : original.tipo;
-      const adjustment = newTipo === 'INGRESO' ? newMonto : -newMonto;
+      // 5. Apply the new balance impact
       await tx.account.update({
         where: { id: original.accountId },
         data: { saldoActual: { increment: adjustment } },
@@ -97,12 +134,21 @@ export class TransactionsService {
 
   async delete(userId: number, id: number) {
     const transaction = await this.prisma.transaction.findFirst({
-      where: { id, account: { userId } }
+      where: { id, account: { userId } },
+      include: { account: true },
     });
     if (!transaction) throw new BadRequestException('Transacción no encontrada');
 
-    return this.prisma.$transaction(async (tx: any) => {
-      const adjustment = transaction.tipo === 'INGRESO' ? -transaction.monto : transaction.monto;
+    // Reversing an INGRESO reduces balance -- verify it won't go negative
+    const adjustment = transaction.tipo === 'INGRESO' ? -transaction.monto : transaction.monto;
+    const deleteBalance = transaction.account.saldoActual;
+    if (adjustment < 0 && deleteBalance + adjustment < 0) {
+      throw new BadRequestException(
+        `No se puede eliminar esta transacción de ingreso: el saldo resultante sería negativo. Saldo actual: ${deleteBalance}`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       await tx.account.update({
         where: { id: transaction.accountId },
         data: { saldoActual: { increment: adjustment } }

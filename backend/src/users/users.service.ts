@@ -1,17 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+
+export interface CreateUserData {
+  nombre: string;
+  email: string;
+  password: string;
+  role?: string;
+  plan?: string;
+}
+
+export interface DefaultCategoryData {
+  nombre: string;
+  tipo: string;
+  colorHex?: string;
+}
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findOne(email: string): Promise<any | null> {
+  async findOne(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
     });
   }
 
-  async findOneById(id: number): Promise<any | null> {
+  async findOneById(id: number) {
     // A02 - Cryptographic Failures: Never expose password hash to clients
     return this.prisma.user.findUnique({
       where: { id },
@@ -26,13 +41,13 @@ export class UsersService {
     });
   }
 
-  async create(data: any): Promise<any> {
+  async create(data: CreateUserData) {
     return this.prisma.user.create({
       data,
     });
   }
 
-  async createDefaultCategory(userId: number, data: any) {
+  async createDefaultCategory(userId: number, data: DefaultCategoryData) {
     return this.prisma.category.create({
       data: {
         ...data,
@@ -41,7 +56,7 @@ export class UsersService {
     });
   }
 
-  async update(id: number, data: any) {
+  async update(id: number, data: UpdateProfileDto) {
     return this.prisma.user.update({
       where: { id },
       data,

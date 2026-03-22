@@ -3,6 +3,14 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
+export interface ValidatedUser {
+  id: number;
+  email: string;
+  nombre: string;
+  role: string;
+  plan: string;
+}
+
 @Injectable()
 export class AuthService {
   // A09 - Security Logging Failures: Use structured Logger instead of console.log
@@ -13,18 +21,18 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, pass: string): Promise<any> {
+  async validateUser(email: string, pass: string): Promise<ValidatedUser | null> {
     const user = await this.usersService.findOne(email);
     if (user && (await bcrypt.compare(pass, user.password))) {
       const { password, ...result } = user;
-      return result;
+      return result as ValidatedUser;
     }
     // A09 - Log failed login attempts without exposing details
     this.logger.warn(`Failed login attempt for email: ${email}`);
     return null;
   }
 
-  async login(user: any) {
+  async login(user: ValidatedUser) {
     const payload = { email: user.email, sub: user.id, nombre: user.nombre, role: user.role, plan: user.plan };
     return {
       access_token: this.jwtService.sign(payload),
@@ -118,6 +126,6 @@ export class AuthService {
       }
     }
 
-    return this.login(user);
+    return this.login(user as ValidatedUser);
   }
 }

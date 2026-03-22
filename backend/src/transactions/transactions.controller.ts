@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -15,8 +15,16 @@ export class TransactionsController {
   }
 
   @Get()
-  findAll(@Request() req: any) {
-    return this.transactionsService.findAll(req.user.id);
+  findAll(
+    @Request() req: any,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.transactionsService.findAll(
+      req.user.id,
+      skip !== undefined ? parseInt(skip, 10) : undefined,
+      take !== undefined ? parseInt(take, 10) : undefined,
+    );
   }
 
   @Patch(':id')

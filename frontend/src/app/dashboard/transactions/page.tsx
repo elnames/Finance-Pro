@@ -27,10 +27,14 @@ export default function TransactionsPage() {
   const [filterAccount, setFilterAccount] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const fetchData = async () => {
+  // Pagination
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+
+  const fetchData = async (currentPage = page) => {
     try {
       const [txRes, accRes, catRes] = await Promise.all([
-        api.get('/transactions'),
+        api.get('/transactions', { params: { skip: currentPage * PAGE_SIZE, take: PAGE_SIZE } }),
         api.get('/accounts'),
         api.get('/categories')
       ]);
@@ -45,8 +49,8 @@ export default function TransactionsPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(page);
+  }, [page]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +63,7 @@ export default function TransactionsPage() {
       });
       setIsModalOpen(false);
       setNewTx({ monto: '', tipo: 'GASTO', descripcion: '', accountId: '', categoryId: '' });
-      fetchData();
+      fetchData(page);
     } catch (error) {
       console.error('Error creating transaction', error);
     }
@@ -69,7 +73,7 @@ export default function TransactionsPage() {
     if (window.confirm('¿Eliminar esta transacción? El saldo de la cuenta será reversado.')) {
       try {
         await api.delete(`/transactions/${id}`);
-        fetchData();
+        fetchData(page);
       } catch (error) {
         console.error('Error deleting transaction', error);
       }
@@ -86,7 +90,7 @@ export default function TransactionsPage() {
         categoryId: Number(editTx.categoryId)
       });
       setIsEditModalOpen(false);
-      fetchData();
+      fetchData(page);
     } catch (error) {
       console.error('Error updating transaction', error);
     }
@@ -145,7 +149,7 @@ export default function TransactionsPage() {
             <input 
               placeholder="Buscar movimientos..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
               className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:border-primary/50 transition-all font-medium"
             />
           </div>
@@ -170,24 +174,24 @@ export default function TransactionsPage() {
               
               {showFilters && (
                   <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex gap-4">
-                      <select 
-                        value={filterCategory} 
-                        onChange={(e) => setFilterCategory(e.target.value)}
+                      <select
+                        value={filterCategory}
+                        onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
                         className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:border-primary/50"
                       >
                           <option value="" className="bg-zinc-900">Todas las Categorías</option>
                           {categories.map(cat => <option key={cat.id} value={cat.id} className="bg-zinc-900">{cat.nombre}</option>)}
                       </select>
-                      <select 
-                        value={filterAccount} 
-                        onChange={(e) => setFilterAccount(e.target.value)}
+                      <select
+                        value={filterAccount}
+                        onChange={(e) => { setFilterAccount(e.target.value); setPage(0); }}
                         className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:border-primary/50"
                       >
                           <option value="" className="bg-zinc-900">Todas las Cuentas</option>
                           {accounts.map(acc => <option key={acc.id} value={acc.id} className="bg-zinc-900">{acc.nombre}</option>)}
                       </select>
                       {(filterCategory || filterAccount || searchTerm) && (
-                          <button onClick={() => { setFilterCategory(''); setFilterAccount(''); setSearchTerm(''); }} className="p-2 hover:bg-rose-500/10 text-rose-500 rounded-lg transition-all" title="Limpiar Filtros">
+                          <button onClick={() => { setFilterCategory(''); setFilterAccount(''); setSearchTerm(''); setPage(0); }} className="p-2 hover:bg-rose-500/10 text-rose-500 rounded-lg transition-all" title="Limpiar Filtros">
                               <X className="w-5 h-5" />
                           </button>
                       )}
@@ -334,6 +338,26 @@ export default function TransactionsPage() {
                  <p className="text-muted-foreground font-medium">No se encontraron movimientos con los filtros actuales.</p>
              </div>
           )}
+        </div>
+
+        <div className="flex items-center justify-between px-8 py-5 border-t border-white/5 bg-white/[0.02]">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest border border-white/10 bg-white/5 text-muted-foreground hover:text-foreground hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Anterior
+          </button>
+          <span className="text-xs font-bold text-muted-foreground">
+            Página {page + 1}
+          </span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={transactions.length < PAGE_SIZE}
+            className="px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest border border-white/10 bg-white/5 text-muted-foreground hover:text-foreground hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Siguiente
+          </button>
         </div>
       </section>
     </div>

@@ -3,10 +3,20 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/services/api';
 
+export interface User {
+  id: number;
+  nombre: string;
+  apellido?: string;
+  email: string;
+  role: 'USER' | 'ADMIN';
+  plan: 'FREE' | 'PRO' | 'ELITE';
+  isDemo?: boolean;
+}
+
 interface AuthContextType {
-  user: any;
+  user: User | null;
   loading: boolean;
-  login: (token: string, user: any) => void;
+  login: (token: string, user: User) => void;
   logout: () => void;
   loginAsDemo: () => Promise<void>;
 }
@@ -14,7 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -27,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = (token: string, userData: any) => {
+  const login = (token: string, userData: User) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
