@@ -67,7 +67,6 @@ export class AuthService {
 
       for (const cat of defaultCategories) {
         try {
-          // @ts-ignore
           await this.usersService.createDefaultCategory(user.id, cat);
         } catch (catError) {
           this.logger.warn(`Could not create default category "${cat.nombre}" for user ${user.id}`);
@@ -115,7 +114,6 @@ export class AuthService {
       ];
 
       for (const cat of demoData) {
-        // @ts-ignore
         await this.usersService.createDefaultCategory(user.id, cat);
       }
     }

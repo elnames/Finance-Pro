@@ -4,6 +4,11 @@ import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 
 async function bootstrap() {
+  // Fail fast: JWT_SECRET must be set before any token can be signed or verified
+  if (!process.env.JWT_SECRET) {
+    throw new Error('FATAL: JWT_SECRET environment variable is not set. Refusing to start.');
+  }
+
   const app = await NestFactory.create(AppModule);
 
   // A05 - Security Misconfiguration: HTTP security headers

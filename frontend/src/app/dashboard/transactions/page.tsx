@@ -92,15 +92,23 @@ export default function TransactionsPage() {
     }
   };
 
+  const sanitizeCSVCell = (value: string | number): string => {
+    const str = String(value);
+    if (/^[=+\-@\t\r]/.test(str)) {
+      return '\t' + str;
+    }
+    return str;
+  };
+
   const exportCSV = () => {
     const headers = ['Fecha', 'Descripción', 'Tipo', 'Monto', 'Categoría', 'Cuenta'];
     const rows = filteredTransactions.map(tx => [
-      new Date(tx.fecha).toLocaleDateString(),
-      tx.descripcion,
-      tx.tipo,
-      tx.monto,
-      tx.category?.nombre || 'General',
-      tx.account?.nombre || 'N/A'
+      sanitizeCSVCell(new Date(tx.fecha).toLocaleDateString()),
+      sanitizeCSVCell(tx.descripcion),
+      sanitizeCSVCell(tx.tipo),
+      sanitizeCSVCell(tx.monto),
+      sanitizeCSVCell(tx.category?.nombre || 'General'),
+      sanitizeCSVCell(tx.account?.nombre || 'N/A')
     ]);
 
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');

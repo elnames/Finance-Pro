@@ -2,15 +2,15 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('token')?.value;
-  const isDashboard = request.nextUrl.pathname.startsWith('/dashboard');
+  const token = request.cookies.get('token')?.value
+    || request.cookies.get('auth-token')?.value;
 
-  if (isDashboard && !token) {
-    // Redirigir a login si no hay token (nota: en este MVP usaremos localStorage en cliente, 
-    // pero el middleware es buena práctica para SSR si se usan cookies)
-    // Para simplificar el MVP con localStorage, permitiremos el paso y el cliente manejará el redirect.
+  if (!token) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    return NextResponse.redirect(loginUrl);
   }
-  
+
   return NextResponse.next();
 }
 

@@ -1,4 +1,4 @@
-import { IsString, MaxLength, IsNumber, IsOptional } from 'class-validator';
+import { IsString, MaxLength, IsOptional } from 'class-validator';
 
 export class UpdateAccountDto {
   @IsOptional()
@@ -6,7 +6,5 @@ export class UpdateAccountDto {
   @MaxLength(100)
   nombre?: string;
 
-  @IsOptional()
-  @IsNumber()
-  saldoActual?: number;
+  // saldoActual is intentionally omitted — balance may only change through transactions
 }

@@ -16,6 +16,7 @@ import {
   PlusCircle,
   Check
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { 
   PieChart, 
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -134,7 +136,10 @@ export default function DashboardPage() {
           <p className="text-muted-foreground font-medium">Aquí tienes el resumen de tu patrimonio hoy.</p>
         </div>
         <div className="flex gap-3">
-          <button className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-xl shadow-white/5 border border-white/5 transition-all active:scale-95">
+          <button
+            onClick={() => router.push('/dashboard/transactions')}
+            className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-xl shadow-white/5 border border-white/5 transition-all active:scale-95"
+          >
             <Plus className="w-5 h-5 shadow-sm" />
             Nueva Transacción
           </button>
@@ -291,15 +296,23 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               </div>
               <div className="grid grid-cols-2 gap-4 w-full mt-6">
-                {chartData.map((item: any) => (
-                  <div key={item.name} className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }}></div>
-                    <div className="overflow-hidden">
-                      <p className="text-xs font-bold truncate">{item.name}</p>
-                      <p className="text-[10px] text-muted-foreground leading-none">24%</p>
-                    </div>
-                  </div>
-                ))}
+                {(() => {
+                  const totalChartValue = chartData.reduce((sum: number, item: any) => sum + item.value, 0);
+                  return chartData.map((item: any) => {
+                    const pct = totalChartValue > 0
+                      ? ((item.value / totalChartValue) * 100).toFixed(0)
+                      : '0';
+                    return (
+                      <div key={item.name} className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }}></div>
+                        <div className="overflow-hidden">
+                          <p className="text-xs font-bold truncate">{item.name}</p>
+                          <p className="text-[10px] text-muted-foreground leading-none">{pct}%</p>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </section>
           </div>
