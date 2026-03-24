@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Req, Res, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Req, Res, HttpCode, HttpStatus, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -44,6 +44,7 @@ export class PaymentsController {
    */
   @Post('transbank/commit')
   @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false, transform: true }))
   async transbankCommit(@Body() body: TransbankReturnDto, @Res() res: Response) {
     const frontendUrl = this.config.get('FRONTEND_URL') ?? 'http://localhost:3010';
 
