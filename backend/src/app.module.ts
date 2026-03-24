@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -11,9 +12,11 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { RecurringExpensesModule } from './recurring-expenses/recurring-expenses.module';
 import { AdminModule } from './admin/admin.module';
 import { BudgetsModule } from './budgets/budgets.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     // A07 - Identification & Authentication Failures: Rate limiting to prevent brute force
     ThrottlerModule.forRoot([
@@ -27,6 +30,11 @@ import { BudgetsModule } from './budgets/budgets.module';
         ttl: 60000,  // 1 minute
         limit: 100,  // max 100 req/min per IP
       },
+      {
+        name: 'auth',
+        ttl: 60000,  // 1 minute
+        limit: 10,   // max 10 req/min per IP for auth endpoints
+      },
     ]),
     PrismaModule,
     AuthModule,
@@ -37,6 +45,7 @@ import { BudgetsModule } from './budgets/budgets.module';
     RecurringExpensesModule,
     AdminModule,
     BudgetsModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [
