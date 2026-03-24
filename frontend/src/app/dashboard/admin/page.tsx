@@ -1,25 +1,31 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '@/services/api';
-import { Shield, User, Crown, Search, Check, X, ArrowUpRight, Edit2, Key, Info, Trash2 } from 'lucide-react';
+import { Shield, User, Search, Edit2, Key, Info, Trash2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Modal } from '@/components/ui/modal';
 import { RoleGate } from '@/components/auth/RoleGate';
+import { useToast } from '@/components/ui/Toast';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import type { AdminUser } from '@/types';
 
 export default function AdminPage() {
-  const [users, setUsers] = useState<any[]>([]);
+  const { success, error: toastError } = useToast();
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingUser, setSavingUser] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({ nombre: '', email: '', password: '', plan: '' });
 
   const fetchUsers = async () => {
     try {
       const res = await api.get('/admin/users');
-      setUsers(res.data);
+      setUsers(Array.isArray(res.data) ? res.data : (res.data?.data ?? []));
     } catch (error) {
       console.error('Error fetching users', error);
+      toastError('Error al cargar los usuarios');
     } finally {
       setLoading(false);
     }
@@ -32,13 +38,15 @@ export default function AdminPage() {
   const handleUpdatePlan = async (userId: number, newPlan: string) => {
     try {
       await api.patch(`/admin/users/${userId}/plan`, { plan: newPlan });
+      success(`Plan actualizado a ${newPlan}`);
       fetchUsers();
     } catch (error) {
       console.error('Error updating plan', error);
+      toastError('Error al actualizar el plan');
     }
   };
 
-  const handleEditClick = (user: any) => {
+  const handleEditClick = (user: AdminUser) => {
     setSelectedUser(user);
     setEditFormData({ nombre: user.nombre, email: user.email, password: '', plan: user.plan });
     setIsEditModalOpen(true);
@@ -46,15 +54,25 @@ export default function AdminPage() {
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedUser) return;
+    setSavingUser(true);
     try {
-      const dataToUpdate: any = { ...editFormData };
-      if (!dataToUpdate.password) delete dataToUpdate.password;
-      
+      const dataToUpdate: Partial<{ nombre: string; email: string; password: string; plan: string }> = {
+        nombre: editFormData.nombre,
+        email: editFormData.email,
+        plan: editFormData.plan,
+      };
+      if (editFormData.password) dataToUpdate.password = editFormData.password;
+
       await api.patch(`/admin/users/${selectedUser.id}`, dataToUpdate);
       setIsEditModalOpen(false);
+      success('Usuario actualizado correctamente');
       fetchUsers();
     } catch (error) {
       console.error('Error saving user', error);
+      toastError('Error al guardar los cambios del usuario');
+    } finally {
+      setSavingUser(false);
     }
   };
 
@@ -62,19 +80,25 @@ export default function AdminPage() {
     if (window.confirm(`¿Estás seguro de que deseas eliminar al usuario "${nombre}"? Esta acción no se puede deshacer.`)) {
       try {
         await api.delete(`/admin/users/${userId}`);
+        success(`Usuario "${nombre}" eliminado`);
         fetchUsers();
       } catch (error) {
         console.error('Error deleting user', error);
+        toastError('Error al eliminar el usuario');
       }
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.nombre.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredUsers = users.filter(u =>
+    u.nombre.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (loading) return <div className="animate-pulse">Cargando panel de administración...</div>;
+  if (loading) return (
+    <div className="space-y-6 p-8">
+      <TableSkeleton rows={6} />
+    </div>
+  );
 
   return (
     <RoleGate allowedRoles={['ADMIN']}>
@@ -106,7 +130,7 @@ export default function AdminPage() {
             <thead className="bg-white/[0.02] border-b border-white/5">
                 <tr>
                     <th className="px-8 py-6 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Usuario</th>
-                    <th className="px-8 py-6 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Plan Actual</th>
+                    <th className="px-8 py-6 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Rol / Plan</th>
                     <th className="px-8 py-6 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Acciones</th>
                 </tr>
             </thead>
@@ -125,49 +149,37 @@ export default function AdminPage() {
                             </div>
                         </td>
                         <td className="px-8 py-6">
-                            <span className={`
-                                px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-xl
-                                ${u.plan === 'FREE' ? 'bg-zinc-200/5 text-zinc-300 border-zinc-500/30 shadow-black/20' : 
-                                  u.plan === 'PREMIUM' ? 'bg-amber-400 text-amber-950 border-amber-300 shadow-amber-500/20' : 
-                                  'bg-indigo-500 text-white border-indigo-400 shadow-indigo-500/20'}
-                            `}>
-                                {u.plan === 'ELITE' ? '✨ ' + u.plan : u.plan}
-                            </span>
+                            {u.plan === 'ADMIN' ? (
+                                <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-xl bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-indigo-500/10">
+                                    ⚡ Admin
+                                </span>
+                            ) : u.plan === 'ELITE' ? (
+                                <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-xl bg-violet-500/20 text-violet-300 border-violet-500/40 shadow-violet-500/10">
+                                    ★ Elite
+                                </span>
+                            ) : u.plan === 'PREMIUM' ? (
+                                <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-xl bg-amber-400/90 text-amber-950 border-amber-300 shadow-amber-500/20">
+                                    Premium
+                                </span>
+                            ) : (
+                                <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-xl bg-zinc-200/5 text-zinc-300 border-zinc-500/30 shadow-black/20">
+                                    Free
+                                </span>
+                            )}
                         </td>
                         <td className="px-8 py-6">
                             <div className="flex gap-2">
-                                <button 
+                                <button
                                     onClick={() => handleEditClick(u)}
+                                    aria-label="Editar usuario"
                                     className="p-2 hover:bg-white/5 rounded-xl text-white transition-all active:scale-95"
-                                    title="Edit User"
                                 >
                                     <Edit2 className="w-5 h-5" />
                                 </button>
-                                <button 
-                                    onClick={() => handleUpdatePlan(u.id, 'ELITE')}
-                                    className="p-2 hover:bg-indigo-500/10 rounded-xl text-indigo-400 transition-all active:scale-95"
-                                    title="Upgrade to Elite"
-                                >
-                                    <Shield className="w-5 h-5" />
-                                </button>
-                                <button 
-                                    onClick={() => handleUpdatePlan(u.id, 'PREMIUM')}
-                                    className="p-2 hover:bg-amber-500/10 rounded-xl text-amber-400 transition-all active:scale-95"
-                                    title="Upgrade to Premium"
-                                >
-                                    <Crown className="w-5 h-5 shadow-sm" />
-                                </button>
-                                <button 
-                                    onClick={() => handleUpdatePlan(u.id, 'FREE')}
-                                    className="p-2 hover:bg-white/5 rounded-xl text-zinc-100 transition-all active:scale-95"
-                                    title="Downgrade to Free"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                                <button 
+                                <button
                                     onClick={() => handleDeleteUser(u.id, u.nombre)}
+                                    aria-label="Eliminar usuario"
                                     className="p-2 hover:bg-rose-500/10 rounded-xl text-rose-500 transition-all active:scale-95"
-                                    title="Delete User"
                                 >
                                     <Trash2 className="w-5 h-5" />
                                 </button>
@@ -191,8 +203,7 @@ export default function AdminPage() {
           <div className="text-sm">
               <p className="font-black mb-1 text-zinc-100">Guía del Sistema</p>
               <p className="text-muted-foreground leading-relaxed font-medium">
-                  Los planes <span className="text-zinc-100 font-bold">FREE</span> y <span className="text-amber-400 font-bold">PREMIUM</span> limitan el volumen de transacciones y herramientas avanzadas. 
-                  El plan <span className="text-indigo-400 font-bold italic">✨ ELITE</span> es el nivel máximo de usuario. Los <span className="underline decoration-indigo-500/50 text-indigo-300">Administradores</span> pueden gestionar cualquier cuenta independientemente de su plan.
+                  Los planes de acceso son: <span className="text-zinc-100 font-bold">FREE</span>, <span className="text-amber-400 font-bold">PREMIUM</span>, <span className="text-violet-300 font-bold">★ ELITE</span> y <span className="text-indigo-300 font-bold">⚡ ADMIN</span>. El plan <span className="text-indigo-300 font-bold">ADMIN</span> otorga acceso completo a la plataforma incluyendo gestión de usuarios. Los demás son restricciones de funcionalidades.
               </p>
           </div>
       </div>
@@ -222,6 +233,7 @@ export default function AdminPage() {
                         <option value="FREE">FREE</option>
                         <option value="PREMIUM">PREMIUM</option>
                         <option value="ELITE">ELITE</option>
+                        <option value="ADMIN">ADMIN</option>
                     </select>
                 </div>
             </div>
@@ -250,8 +262,13 @@ export default function AdminPage() {
             </div>
 
             <div className="flex gap-4 pt-4">
-                <button type="submit" className="flex-1 bg-primary py-4 rounded-2xl font-black text-white hover:scale-[1.02] transition-all shadow-xl shadow-primary/20">
-                    Guardar Cambios
+                <button
+                  type="submit"
+                  disabled={savingUser}
+                  className="flex-1 bg-primary disabled:opacity-60 disabled:cursor-not-allowed py-4 rounded-2xl font-black text-white hover:scale-[1.02] transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
+                >
+                    {savingUser && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {savingUser ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 bg-white/5 border border-white/10 py-4 rounded-2xl font-bold hover:bg-white/10 transition-all text-sm">
                     Cancelar

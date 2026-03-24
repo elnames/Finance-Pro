@@ -14,7 +14,7 @@ export class AdminUpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['FREE', 'PREMIUM', 'ELITE'])
+  @IsIn(['FREE', 'PREMIUM', 'ELITE', 'ADMIN'])
   plan?: string;
 
   @IsOptional()
