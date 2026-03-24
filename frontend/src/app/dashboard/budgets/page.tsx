@@ -1,17 +1,27 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import api from '@/services/api';
-import { Target, Plus, AlertCircle, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { Target, Plus, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Modal } from '@/components/ui/modal';
+import { useToast } from '@/components/ui/Toast';
+import { CardSkeleton } from '@/components/ui/Skeleton';
+import { UpgradeModal } from '@/components/ui/UpgradeModal';
+import { useAuth } from '@/context/AuthContext';
+import { getLimits } from '@/lib/plan-limits';
+import type { Budget, Category, Transaction } from '@/types';
 
 export default function BudgetsPage() {
-  const [budgets, setBudgets] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const { success, error: toastError } = useToast();
+  const { user } = useAuth();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+  const [submitting, setSubmitting] = useState(false);
+
   const now = new Date();
   const [dateFilter, setDateFilter] = useState({ mes: now.getMonth() + 1, anio: now.getFullYear() });
   const [newBudget, setNewBudget] = useState({ monto: '', categoryId: '' });
@@ -23,11 +33,16 @@ export default function BudgetsPage() {
         api.get('/categories'),
         api.get('/transactions')
       ]);
-      setBudgets(budRes.data);
-      setCategories(catRes.data.filter((c: any) => c.tipo === 'GASTO'));
-      setTransactions(txRes.data);
-    } catch (error) {
-      console.error('Error fetching data', error);
+      // Paginated endpoints return { data: [...], total, page, limit, totalPages }
+      const budgetsArray = Array.isArray(budRes.data) ? budRes.data : (budRes.data?.data ?? []);
+      const categoriesArray = Array.isArray(catRes.data) ? catRes.data : (catRes.data?.data ?? []);
+      const transactionsArray = Array.isArray(txRes.data) ? txRes.data : (txRes.data?.data ?? []);
+      setBudgets(budgetsArray);
+      setCategories(categoriesArray.filter((c: Category) => c.tipo === 'GASTO'));
+      setTransactions(transactionsArray);
+    } catch (err) {
+      console.error('Error fetching data', err);
+      toastError('Error al cargar los presupuestos');
     } finally {
       setLoading(false);
     }
@@ -39,43 +54,69 @@ export default function BudgetsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedMonto = Number(newBudget.monto);
+    if (!parsedMonto || parsedMonto <= 0 || isNaN(parsedMonto)) {
+      toastError('El monto del presupuesto debe ser mayor que cero');
+      return;
+    }
+    setSubmitting(true);
     try {
       await api.post('/budgets', {
         ...newBudget,
-        monto: Number(newBudget.monto),
+        monto: parsedMonto,
         ...dateFilter
       });
       setIsModalOpen(false);
       setNewBudget({ monto: '', categoryId: '' });
+      success('Presupuesto guardado correctamente');
       fetchData();
-    } catch (error) {
-      console.error('Error creating budget', error);
+    } catch (err) {
+      console.error('Error creating budget', err);
+      toastError('Error al guardar el presupuesto');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const calculateSpent = (categoryId: number) => {
-    return transactions
-      .filter(tx => 
-        tx.categoryId === categoryId && 
+  const spentByCategory = useMemo(() => {
+    const map = new Map<number, number>();
+    transactions.forEach(tx => {
+      if (
         tx.tipo === 'GASTO' &&
         new Date(tx.fecha).getMonth() + 1 === dateFilter.mes &&
         new Date(tx.fecha).getFullYear() === dateFilter.anio
-      )
-      .reduce((acc, curr) => acc + curr.monto, 0);
-  };
+      ) {
+        map.set(tx.categoryId, (map.get(tx.categoryId) ?? 0) + Number(tx.monto));
+      }
+    });
+    return map;
+  }, [transactions, dateFilter]);
 
-  if (loading) return <div className="animate-pulse">Analizando tus metas...</div>;
+  const limits = getLimits(user?.plan ?? 'FREE');
+  const atLimit = isFinite(limits.budgets) && budgets.length >= limits.budgets;
+
+  const handleNewBudget = () => {
+    if (atLimit) { setUpgradeOpen(true); return; }
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} currentPlan={user?.plan ?? 'FREE'} reason={`El plan ${user?.plan ?? 'FREE'} solo permite ${limits.budgets} presupuesto por mes. Sube de plan para más.`} />
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-black tracking-tight mb-2">Presupuestos</h1>
           <p className="text-muted-foreground font-medium">Controla tus gastos mensuales por categoría.</p>
+          {isFinite(limits.budgets) && (
+            <p className="text-xs text-muted-foreground font-bold mt-1">
+              <span className={atLimit ? 'text-rose-400' : 'text-primary'}>{budgets.length}</span>
+              <span> / {limits.budgets} presupuesto{limits.budgets !== 1 ? 's' : ''} este mes</span>
+            </p>
+          )}
         </div>
         <div className="flex gap-4">
-            <select 
-                value={dateFilter.mes} 
+            <select
+                value={dateFilter.mes}
                 onChange={(e) => setDateFilter({...dateFilter, mes: Number(e.target.value)})}
                 className="bg-white/5 border border-white/10 rounded-2xl px-4 py-2 text-sm font-bold"
             >
@@ -83,12 +124,12 @@ export default function BudgetsPage() {
                     <option key={i+1} value={i+1} className="bg-zinc-900">{new Date(0, i).toLocaleString('es', {month: 'long'})}</option>
                 ))}
             </select>
-            <button 
-                onClick={() => setIsModalOpen(true)}
-                className="bg-primary hover:bg-primary/90 text-white px-8 py-4 rounded-3xl flex items-center gap-3 font-black shadow-2xl shadow-primary/20 transition-all active:scale-95"
+            <button
+                onClick={handleNewBudget}
+                className={`text-white px-8 py-4 rounded-3xl flex items-center gap-3 font-black shadow-2xl transition-all active:scale-95 ${atLimit ? 'bg-zinc-700 shadow-none' : 'bg-primary hover:bg-primary/90 shadow-primary/20'}`}
             >
-                <Plus className="w-6 h-6" />
-                Definir Meta
+                {atLimit ? <Lock className="w-5 h-5" /> : <Plus className="w-6 h-6" />}
+                {atLimit ? 'Límite alcanzado' : 'Definir Meta'}
             </button>
         </div>
       </header>
@@ -120,15 +161,30 @@ export default function BudgetsPage() {
                     className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold" 
                   />
               </div>
-              <button type="submit" className="w-full bg-primary py-4 rounded-2xl font-black">Guardar Presupuesto</button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-primary disabled:opacity-60 disabled:cursor-not-allowed py-4 rounded-2xl font-black"
+              >
+                {submitting ? 'Guardando...' : 'Guardar Presupuesto'}
+              </button>
           </form>
       </Modal>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {budgets.map((bud) => {
-              const spent = calculateSpent(bud.categoryId);
-              const percent = Math.min((spent / bud.monto) * 100, 100);
-              const isOver = spent > bud.monto;
+          {loading ? (
+            <>
+              <CardSkeleton />
+              <CardSkeleton />
+              <CardSkeleton />
+            </>
+          ) : null}
+          {!loading && budgets.map((bud) => {
+              const budgetMonto = Number(bud.monto);
+              const spent = spentByCategory.get(bud.categoryId) ?? 0;
+              // Guard against division by zero when budgetMonto is 0
+              const percent = budgetMonto > 0 ? Math.min((spent / budgetMonto) * 100, 100) : 0;
+              const isOver = spent > budgetMonto;
 
               return (
                   <motion.div 
@@ -155,7 +211,7 @@ export default function BudgetsPage() {
                       <div className="space-y-4">
                           <div className="flex justify-between items-end">
                               <p className="text-sm font-bold text-muted-foreground">Gastado: <span className={isOver ? 'text-rose-500' : 'text-foreground'}>${spent.toLocaleString()}</span></p>
-                              <p className="text-sm font-bold text-muted-foreground">Límite: ${bud.monto.toLocaleString()}</p>
+                              <p className="text-sm font-bold text-muted-foreground">Límite: ${budgetMonto.toLocaleString()}</p>
                           </div>
                           
                           <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden">
@@ -174,7 +230,7 @@ export default function BudgetsPage() {
               );
           })}
 
-          {budgets.length === 0 && (
+          {!loading && budgets.length === 0 && (
               <div className="col-span-full py-20 text-center glass rounded-[40px] border border-dashed border-white/20">
                   <Target className="w-16 h-16 mx-auto mb-6 text-muted-foreground opacity-20" />
                   <p className="text-xl font-bold">No has definido presupuestos para este mes</p>

@@ -1,22 +1,58 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '@/services/api';
-import { Repeat, Plus, Bell, Calendar, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
+import { Repeat, Plus, Bell, CheckCircle2, XCircle, Lock, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Modal } from '@/components/ui/modal';
+import { useToast } from '@/components/ui/Toast';
+import { CardSkeleton } from '@/components/ui/Skeleton';
+import { UpgradeModal } from '@/components/ui/UpgradeModal';
+import { useAuth } from '@/context/AuthContext';
+import { getLimits } from '@/lib/plan-limits';
+import type { RecurringExpense } from '@/types';
 
 export default function RecurringPage() {
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const { user } = useAuth();
+  const limits = getLimits(user?.plan ?? 'FREE');
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+  if (!limits.recurring) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in duration-700">
+        <div className="w-24 h-24 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+          <Lock className="w-10 h-10 text-primary" />
+        </div>
+        <div className="text-center">
+          <h1 className="text-3xl font-black tracking-tight mb-2">Función Premium</h1>
+          <p className="text-muted-foreground font-medium max-w-sm">
+            Los pagos recurrentes están disponibles a partir del plan Premium. Automatiza tus suscripciones y gastos fijos.
+          </p>
+        </div>
+        <button
+          onClick={() => setUpgradeOpen(true)}
+          className="flex items-center gap-3 bg-amber-400 hover:bg-amber-300 text-black font-black px-8 py-4 rounded-3xl shadow-xl shadow-amber-400/20 transition-all active:scale-95"
+        >
+          <Zap className="w-5 h-5" />
+          Subir a Premium
+        </button>
+        <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} currentPlan={user?.plan ?? 'FREE'} reason="Desbloquea pagos recurrentes y mucho más con Premium." />
+      </div>
+    );
+  }
+  const { success, error: toastError } = useToast();
+  const [expenses, setExpenses] = useState<RecurringExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newExp, setNewExp] = useState({ descripcion: '', monto: '', diaDelMes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [newExp, setNewExp] = useState({ descripcion: '', monto: '', diaDelMes: '', tipo: 'GASTO' });
 
   const fetchExpenses = async () => {
     try {
       const res = await api.get('/recurring-expenses');
-      setExpenses(res.data);
+      setExpenses(Array.isArray(res.data) ? res.data : (res.data?.data ?? []));
     } catch (error) {
       console.error('Error fetching recurring expenses', error);
+      toastError('Error al cargar los pagos recurrentes');
     } finally {
       setLoading(false);
     }
@@ -28,34 +64,64 @@ export default function RecurringPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Client-side validation
+    const monto = Number(newExp.monto);
+    const dia = Number(newExp.diaDelMes);
+    if (!newExp.descripcion.trim()) {
+      toastError('La descripción es obligatoria');
+      return;
+    }
+    if (isNaN(monto) || monto <= 0) {
+      toastError('El monto debe ser un número mayor a 0');
+      return;
+    }
+    if (isNaN(dia) || dia < 1 || dia > 31) {
+      toastError('El día de cobro debe estar entre 1 y 31');
+      return;
+    }
+    setSubmitting(true);
     try {
       await api.post('/recurring-expenses', {
         ...newExp,
-        monto: Number(newExp.monto) || 0,
-        diaDelMes: Number(newExp.diaDelMes) || 1
+        monto,
+        diaDelMes: dia
       });
       setIsModalOpen(false);
-      setNewExp({ descripcion: '', monto: '', diaDelMes: '' });
+      setNewExp({ descripcion: '', monto: '', diaDelMes: '', tipo: 'GASTO' });
+      success('Suscripción guardada correctamente');
       fetchExpenses();
     } catch (error) {
       console.error('Error creating recurring expense', error);
+      toastError('Error al guardar la suscripción');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleToggle = async (id: number, currentActive: boolean) => {
     try {
       await api.patch(`/recurring-expenses/${id}/toggle`, { isActive: !currentActive });
+      success(currentActive ? 'Suscripción desactivada' : 'Suscripción activada');
       fetchExpenses();
     } catch (error) {
       console.error('Error toggling expense', error);
+      toastError('Error al actualizar la suscripción');
     }
   };
 
-  if (loading) return <div className="animate-pulse">Sincronizando tus suscripciones...</div>;
+  if (loading) return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 space-y-6">
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+      </div>
+    </div>
+  );
 
   const totalMonthly = expenses
     .filter(e => e.isActive)
-    .reduce((acc, curr) => acc + curr.monto, 0);
+    .reduce((acc, curr) => acc + Number(curr.monto), 0);
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -93,7 +159,7 @@ export default function RecurringPage() {
           <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Monto Mensual</label>
-                <input 
+                <input
                   type="number"
                   required
                   value={newExp.monto}
@@ -103,7 +169,7 @@ export default function RecurringPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Día de Cobro</label>
-                <input 
+                <input
                   type="number"
                   min="1"
                   max="31"
@@ -116,11 +182,24 @@ export default function RecurringPage() {
               </div>
           </div>
 
-          <button 
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Tipo</label>
+            <select
+              value={newExp.tipo}
+              onChange={e => setNewExp({ ...newExp, tipo: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+            >
+              <option value="GASTO">Gasto</option>
+              <option value="INGRESO">Ingreso</option>
+            </select>
+          </div>
+
+          <button
             type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-white py-4 rounded-2xl font-black shadow-xl shadow-primary/30 transition-all active:scale-95 mt-4"
+            disabled={submitting}
+            className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-black shadow-xl shadow-primary/30 transition-all active:scale-95 mt-4"
           >
-            Guardar Suscripción
+            {submitting ? 'Guardando...' : 'Guardar Suscripción'}
           </button>
         </form>
       </Modal>
@@ -149,7 +228,7 @@ export default function RecurringPage() {
                 <h3 className="font-bold mb-4 flex items-center gap-2"><Bell className="w-5 h-5 text-primary" /> Próximos Pagos</h3>
                 <div className="space-y-4">
                     {expenses.filter(e => e.isActive).slice(0, 3).map(e => (
-                        <UpcomingItem key={e.id} title={e.descripcion} day={e.diaDelMes} amount={e.monto} />
+                        <UpcomingItem key={e.id} title={e.descripcion} day={e.diaDelMes} amount={Number(e.monto)} />
                     ))}
                     {expenses.filter(e => e.isActive).length === 0 && (
                          <p className="text-xs text-muted-foreground italic">Sin pagos activos para este mes.</p>
@@ -190,16 +269,16 @@ function RecurringCard({ item, onToggle }: any) {
             <div className="flex items-center gap-10">
                 <div className="text-right">
                     <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Monto</p>
-                    <p className="text-2xl font-black">${item.monto.toLocaleString()}</p>
+                    <p className="text-2xl font-black">${Number(item.monto).toLocaleString()}</p>
                 </div>
                 
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggle();
                   }}
+                  aria-label={item.isActive ? "Desactivar gasto recurrente" : "Activar gasto recurrente"}
                   className={`p-3 rounded-2xl transition-all ${item.isActive ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20' : 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20'}`}
-                  title={item.isActive ? "Desactivar" : "Activar"}
                 >
                     {item.isActive ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                 </button>
