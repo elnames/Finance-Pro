@@ -14,18 +14,21 @@ import {
   Target
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
+import { PlanBanner } from '@/components/ui/PlanBanner';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // desktop
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);     // mobile
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -46,7 +49,7 @@ export default function DashboardLayout({
     { icon: Target, label: 'Presupuestos', href: '/dashboard/budgets' },
   ];
 
-  if (user?.role === 'ADMIN') {
+  if (user?.plan === 'ADMIN') {
     menuItems.push({ icon: Shield, label: 'Admin', href: '/dashboard/admin' });
   }
 
@@ -59,7 +62,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="h-screen bg-background text-foreground flex overflow-hidden">
+    <div className="bg-background text-foreground flex overflow-hidden" style={{ height: '100dvh' }}>
       {/* Background Decor */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px] opacity-30" />
@@ -69,18 +72,18 @@ export default function DashboardLayout({
       {/* Desktop Sidebar */}
       <aside
         className={`relative z-20 border-r border-white/5 bg-[#0a0a0a]/80 backdrop-blur-3xl hidden lg:flex flex-col flex-shrink-0 transition-all duration-300`}
-        style={{ width: isSidebarOpen ? 280 : 100 }}
+        style={{ width: isSidebarCollapsed ? 100 : 280 }}
       >
         <div className="p-8 flex items-center gap-4">
           <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-white/5 border border-white/5">
             <Wallet className="text-white w-7 h-7" />
           </div>
           <div
-            className={`flex flex-col transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 pointer-events-none'}`}
+            className={`flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0 pointer-events-none' : 'opacity-100'}`}
           >
             <span className="font-black text-xl tracking-tighter uppercase italic">Finance pro</span>
             <span className="text-[10px] font-black text-primary tracking-[0.2em] uppercase">
-              {user?.isDemo ? 'Demo Mode' : user?.plan === 'ELITE' ? 'Elite Tier' : 'Pro Tier'}
+              {user?.isDemo ? 'Demo Mode' : user?.plan === 'ADMIN' ? 'Admin' : user?.plan === 'ELITE' ? 'Elite' : user?.plan === 'PREMIUM' ? 'Premium' : 'Free'}
             </span>
           </div>
         </div>
@@ -96,7 +99,7 @@ export default function DashboardLayout({
                 <span
                   className={`
                     font-bold text-sm tracking-tight whitespace-nowrap transition-all duration-300
-                    ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 pointer-events-none'}
+                    ${isSidebarCollapsed ? 'opacity-0 w-0 pointer-events-none' : 'opacity-100'}
                   `}
                 >
                   {item.label}
@@ -108,6 +111,9 @@ export default function DashboardLayout({
             </Link>
           ))}
         </nav>
+
+        {/* Plan upgrade banner */}
+        {!user?.isDemo && <PlanBanner plan={user?.plan ?? 'FREE'} collapsed={isSidebarCollapsed} />}
 
         {/* User Dock Section */}
         <div className="p-4 mt-auto">
@@ -143,16 +149,18 @@ export default function DashboardLayout({
                 `}
             >
                 <div className="w-10 h-10 rounded-2xl bg-zinc-800 border border-white/10 overflow-hidden flex-shrink-0">
-                    <img 
-                      src={`https://ui-avatars.com/api/?name=${user?.nombre || 'User'}&background=333&color=fff`} 
-                      alt="avatar" 
+                    <Image
+                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.nombre || 'User')}&background=333&color=fff`}
+                      alt="avatar"
+                      width={40}
+                      height={40}
                       className="w-full h-full object-cover"
                     />
                 </div>
                 <div 
                   className={`
                     flex-1 text-left overflow-hidden transition-all duration-300
-                    ${isSidebarOpen ? 'opacity-100 max-w-full' : 'opacity-0 max-w-0 pointer-events-none'}
+                    ${isSidebarCollapsed ? 'opacity-0 max-w-0 pointer-events-none' : 'opacity-100 max-w-full'}
                   `}
                 >
                     <p className="text-sm font-black truncate text-zinc-100">{user?.nombre || 'Inversionista'}</p>
@@ -183,7 +191,7 @@ export default function DashboardLayout({
         )}
 
         {/* Mobile Header */}
-        <header className="lg:hidden p-4 border-b border-white/5 flex justify-between items-center bg-background/50 backdrop-blur-xl sticky top-0 z-30">
+        <header className="lg:hidden flex-shrink-0 h-16 px-4 border-b border-white/5 flex justify-between items-center bg-background/80 backdrop-blur-xl z-30">
           <div className="flex items-center gap-2">
              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center border border-white/10 shadow-lg">
               <Wallet className="text-white w-5 h-5" />
@@ -193,11 +201,17 @@ export default function DashboardLayout({
           <div className="flex items-center gap-2">
             {!user?.isDemo && (
               <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="w-8 h-8 rounded-full overflow-hidden border border-white/10">
-                <img src={`https://ui-avatars.com/api/?name=${user?.nombre || 'U'}&background=333&color=fff`} alt="avatar" className="w-full h-full object-cover" />
+                <Image
+                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.nombre || 'U')}&background=333&color=fff`}
+                  alt="avatar"
+                  width={32}
+                  height={32}
+                  className="w-full h-full object-cover"
+                />
               </button>
             )}
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 bg-white/5 rounded-lg border border-white/10">
-              {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-white/5 rounded-lg border border-white/10">
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </header>
@@ -209,6 +223,81 @@ export default function DashboardLayout({
           </div>
         </div>
       </main>
+
+      {/* Mobile Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="lg:hidden fixed left-0 top-0 z-50 w-72 bg-[#0a0a0a] border-r border-white/5 flex flex-col"
+              style={{ height: '100dvh' }}
+            >
+              <div className="p-5 flex items-center justify-between border-b border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center">
+                    <Wallet className="text-white w-5 h-5" />
+                  </div>
+                  <span className="font-black text-base tracking-tighter uppercase italic">Finance pro</span>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-1.5 hover:bg-white/5 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                {menuItems.map((item) => (
+                  <Link key={item.label} href={item.href} onClick={() => setIsMobileMenuOpen(false)}>
+                    <div className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all
+                      ${pathname === item.href
+                        ? 'bg-primary text-white shadow-lg'
+                        : 'hover:bg-white/5 text-muted-foreground hover:text-foreground'}`}>
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      <span className="font-bold text-sm">{item.label}</span>
+                    </div>
+                  </Link>
+                ))}
+              </nav>
+
+              <div className="p-4 border-t border-white/5 space-y-1 flex-shrink-0">
+                <div className="flex items-center gap-3 px-4 py-3 mb-2">
+                  <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-white/10 overflow-hidden flex-shrink-0">
+                    <Image
+                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.nombre || 'U')}&background=333&color=fff`}
+                      alt="avatar" width={36} height={36} className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-sm font-black truncate">{user?.nombre || 'Inversionista'}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{user?.plan || 'Free'} Account</p>
+                  </div>
+                </div>
+                <Link href="/dashboard/settings" onClick={() => setIsMobileMenuOpen(false)}>
+                  <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-2xl text-sm font-bold transition-all">
+                    <Settings className="w-4 h-4" /> Configuración
+                  </button>
+                </Link>
+                <button
+                  onClick={logout}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-rose-500/10 rounded-2xl text-sm font-bold text-rose-500 transition-all"
+                >
+                  <LogOut className="w-4 h-4" /> Cerrar Sesión
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

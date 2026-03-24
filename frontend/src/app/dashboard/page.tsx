@@ -1,11 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import api from '@/services/api';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { accountsApi, transactionsApi, categoriesApi, budgetsApi } from '@/services/api';
 import { motion } from 'framer-motion';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
   ArrowUpRight,
   Plus,
   Target,
@@ -14,51 +17,86 @@ import {
   Rocket,
   Zap,
   PlusCircle,
-  Check
+  Check,
+  AlertCircle,
+  X,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { UpgradeModal } from '@/components/ui/UpgradeModal';
+import type { Account, Transaction, Category, Budget } from '@/types';
+
+// Lazy-load the heavy Recharts chart sections to keep the initial bundle small.
+const WeeklyActivityChart = dynamic(
+  () => import('@/components/dashboard/WeeklyActivityChart'),
+  {
+    loading: () => <div className="h-[350px] w-full animate-pulse bg-white/5 rounded-3xl" />,
+    ssr: false,
+  }
+);
+
+const CategoryDistributionChart = dynamic(
+  () => import('@/components/dashboard/CategoryDistributionChart'),
+  {
+    loading: () => <div className="h-[250px] w-full animate-pulse bg-white/5 rounded-3xl" />,
+    ssr: false,
+  }
+);
+
+interface DashboardData {
+  accounts: Account[];
+  transactions: Transaction[];
+  categories: Category[];
+  budgets: Budget[];
+}
 
 export default function DashboardPage() {
-  const [data, setData] = useState<any>({
+  const router = useRouter();
+  const [data, setData] = useState<DashboardData>({
     accounts: [],
     transactions: [],
     categories: [],
     budgets: []
   });
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const { user } = useAuth();
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return sessionStorage.getItem('fp_upgrade_banner') === 'dismissed';
+  });
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+  const showBanner = !bannerDismissed && (user?.plan === 'FREE' || user?.plan === 'PREMIUM') && !user?.isDemo;
+
+  const dismissBanner = () => {
+    sessionStorage.setItem('fp_upgrade_banner', 'dismissed');
+    setBannerDismissed(true);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
+      setFetchError(null);
       try {
         const currentMonth = new Date().getMonth() + 1;
         const currentYear = new Date().getFullYear();
-        
+
         const [accs, txs, cats, buds] = await Promise.all([
-          api.get('/accounts'),
-          api.get('/transactions'),
-          api.get('/categories'),
-          api.get(`/budgets?mes=${currentMonth}&anio=${currentYear}`)
+          accountsApi.getAll(),
+          transactionsApi.getAll(),
+          categoriesApi.getAll(),
+          budgetsApi.getAll(currentMonth, currentYear)
         ]);
+        const pick = (r: any) => Array.isArray(r.data) ? r.data : (r.data?.data ?? []);
         setData({
-          accounts: accs.data,
-          transactions: txs.data,
-          categories: cats.data,
-          budgets: buds.data
+          accounts: pick(accs),
+          transactions: pick(txs),
+          categories: pick(cats),
+          budgets: pick(buds),
         });
       } catch (error) {
         console.error('Error fetching dashboard data', error);
+        setFetchError('No se pudo cargar el resumen. Verifica tu conexión e intenta de nuevo.');
       } finally {
         setLoading(false);
       }
@@ -66,11 +104,15 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  const totalBalance = data.accounts.reduce((sum: number, acc: any) => sum + acc.saldoActual, 0);
+  // monto and saldoActual are Decimal strings from the API — convert before arithmetic.
+  const totalBalance = data.accounts.reduce(
+    (sum: number, acc: any) => sum + Number(acc.saldoActual),
+    0
+  );
 
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  
+
   const monthlyTransactions = data.transactions.filter((tx: any) => {
     const d = new Date(tx.fecha);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -78,16 +120,18 @@ export default function DashboardPage() {
 
   const ingresosMes = monthlyTransactions
     .filter((tx: any) => tx.tipo === 'INGRESO')
-    .reduce((sum: number, tx: any) => sum + tx.monto, 0);
-  
+    .reduce((sum: number, tx: any) => sum + Number(tx.monto), 0);
+
   const gastosMes = monthlyTransactions
     .filter((tx: any) => tx.tipo === 'GASTO')
-    .reduce((sum: number, tx: any) => sum + tx.monto, 0);
+    .reduce((sum: number, tx: any) => sum + Number(tx.monto), 0);
 
-  const categoryTotals = data.transactions.reduce((acc: any, tx: any) => {
+  // Category distribution should reflect the current month only, to be
+  // consistent with the income/expense stats shown above the chart.
+  const categoryTotals = monthlyTransactions.reduce((acc: any, tx: any) => {
     const catName = tx.category?.nombre || 'General';
     if (!acc[catName]) acc[catName] = { value: 0, color: tx.category?.colorHex || '#444' };
-    acc[catName].value += tx.monto;
+    acc[catName].value += Number(tx.monto);
     return acc;
   }, {});
 
@@ -110,8 +154,8 @@ export default function DashboardPage() {
     const txDate = new Date(tx.fecha).toISOString().split('T')[0];
     const day = last7Days.find(d => d.date === txDate);
     if (day) {
-      if (tx.tipo === 'INGRESO') day.ingresos += tx.monto;
-      else day.gastos += tx.monto;
+      if (tx.tipo === 'INGRESO') day.ingresos += Number(tx.monto);
+      else day.gastos += Number(tx.monto);
     }
   });
 
@@ -124,17 +168,72 @@ export default function DashboardPage() {
     </div>
   );
 
+  if (fetchError) return (
+    <div className="flex flex-col items-center justify-center h-[80vh] gap-4 text-center">
+      <AlertCircle className="w-12 h-12 text-rose-500" />
+      <p className="text-lg font-bold text-rose-500">{fetchError}</p>
+    </div>
+  );
+
   const hasNoData = data.accounts.length === 0;
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Upgrade Banner */}
+      {showBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className={`relative flex items-center justify-between gap-4 px-6 py-4 rounded-3xl border ${
+            user?.plan === 'FREE'
+              ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+              : 'bg-violet-500/10 border-violet-500/20 text-violet-300'
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            <div className={`p-2 rounded-xl ${user?.plan === 'FREE' ? 'bg-amber-500/20' : 'bg-violet-500/20'}`}>
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-black text-sm">
+                {user?.plan === 'FREE'
+                  ? 'Estás en el plan gratuito — desbloquea todo con Premium'
+                  : 'Sube a Elite y accede a funciones ilimitadas sin restricciones'}
+              </p>
+              <p className="text-xs opacity-70 font-medium mt-0.5">
+                {user?.plan === 'FREE' ? 'Cuentas, transacciones y categorías ilimitadas.' : 'Prioridad de soporte y acceso anticipado a nuevas funciones.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <button
+              onClick={() => setUpgradeOpen(true)}
+              className={`text-xs font-black px-5 py-2.5 rounded-2xl transition-all active:scale-95 ${
+                user?.plan === 'FREE'
+                  ? 'bg-amber-500 hover:bg-amber-400 text-black'
+                  : 'bg-violet-500 hover:bg-violet-400 text-white'
+              }`}
+            >
+              {user?.plan === 'FREE' ? 'Subir a Premium' : 'Subir a Elite'}
+            </button>
+            <button onClick={dismissBanner} className="p-1.5 opacity-60 hover:opacity-100 transition-opacity rounded-lg hover:bg-white/10">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </motion.div>
+      )}
+      <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} currentPlan={user?.plan ?? 'FREE'} />
+
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight mb-1">Hola, {user?.nombre || 'Inversionista'} 👋</h1>
           <p className="text-muted-foreground font-medium">Aquí tienes el resumen de tu patrimonio hoy.</p>
         </div>
         <div className="flex gap-3">
-          <button className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-xl shadow-white/5 border border-white/5 transition-all active:scale-95">
+          <button
+            onClick={() => router.push('/dashboard/transactions')}
+            className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-xl shadow-white/5 border border-white/5 transition-all active:scale-95">
             <Plus className="w-5 h-5 shadow-sm" />
             Nueva Transacción
           </button>
@@ -236,7 +335,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-            {/* Main Chart Card */}
+            {/* Main Chart Card — lazy loaded */}
             <section className="lg:col-span-4 glass p-8 rounded-[32px] border border-white/5">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-xl font-bold">Actividad Semanal</h3>
@@ -245,62 +344,13 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500" /> Gastos</div>
                 </div>
               </div>
-              <div className="h-[350px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={areaData}>
-                    <defs>
-                      <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#222" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#222" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)' }}
-                    />
-                    <Area type="monotone" dataKey="ingresos" stroke="#444" strokeWidth={3} fillOpacity={1} fill="url(#colorIngresos)" />
-                    <Area type="monotone" dataKey="gastos" stroke="#f43f5e" strokeWidth={3} fill="transparent" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              <WeeklyActivityChart data={areaData} />
             </section>
 
-            {/* Categories Pie Card */}
+            {/* Categories Pie Card — lazy loaded */}
             <section className="lg:col-span-3 glass p-8 rounded-[32px] border border-white/5 flex flex-col items-center">
               <h3 className="text-xl font-bold mb-6 self-start">Distribución</h3>
-              <div className="h-[250px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={chartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={70}
-                      outerRadius={90}
-                      paddingAngle={8}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {chartData.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                       contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '16px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid grid-cols-2 gap-4 w-full mt-6">
-                {chartData.map((item: any) => (
-                  <div key={item.name} className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }}></div>
-                    <div className="overflow-hidden">
-                      <p className="text-xs font-bold truncate">{item.name}</p>
-                      <p className="text-[10px] text-muted-foreground leading-none">24%</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <CategoryDistributionChart data={chartData} />
             </section>
           </div>
 
@@ -312,9 +362,9 @@ export default function DashboardPage() {
                   <Clock className="w-5 h-5 text-primary" />
                   Últimos Movimientos
                 </h3>
-                <button className="text-primary text-sm hover:underline font-bold flex items-center gap-1">
+                <Link href="/dashboard/transactions" className="text-primary text-sm hover:underline font-bold flex items-center gap-1">
                   Ver todos <ChevronRight className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
               <div className="space-y-4">
                 {data.transactions.length > 0 ? (
@@ -343,21 +393,23 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 {data.budgets.length > 0 ? (
                   data.budgets.slice(0, 3).map((bud: any) => {
-                    const spent = data.transactions
-                      .filter((tx: any) => 
-                        tx.categoryId === bud.categoryId && 
-                        tx.tipo === 'GASTO' &&
-                        new Date(tx.fecha).getMonth() === new Date().getMonth()
+                    const budgetMonto = Number(bud.monto);
+                    // Use monthlyTransactions (already filtered by month AND year)
+                    // to avoid including same-month transactions from prior years.
+                    const spent = monthlyTransactions
+                      .filter((tx: any) =>
+                        tx.categoryId === bud.categoryId &&
+                        tx.tipo === 'GASTO'
                       )
-                      .reduce((acc: number, curr: any) => acc + curr.monto, 0);
-                    
+                      .reduce((acc: number, curr: any) => acc + Number(curr.monto), 0);
+
                     return (
-                      <GoalProgress 
+                      <GoalProgress
                         key={bud.id}
                         title={bud.category.nombre}
-                        target={bud.monto}
+                        target={budgetMonto}
                         current={spent}
-                        color={spent > bud.monto ? 'bg-rose-500' : 'bg-primary'}
+                        color={spent > budgetMonto ? 'bg-rose-500' : 'bg-primary'}
                       />
                     );
                   })
@@ -384,8 +436,6 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-import Link from 'next/link';
 
 function OnboardingStep({ number, title, description, icon: Icon, completed }: any) {
   return (
@@ -441,7 +491,7 @@ function TransactionItem({ transaction }: any) {
       </div>
       <div className="text-right">
         <p className={`text-base font-black ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-          {isPositive ? '+' : '-'}${Math.abs(transaction.monto).toLocaleString()}
+          {isPositive ? '+' : '-'}${Math.abs(Number(transaction.monto)).toLocaleString()}
         </p>
         <p className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(transaction.fecha).toLocaleDateString()}</p>
       </div>
@@ -472,7 +522,8 @@ function SampleTransactionItem({ label, category, amount, date, positive }: any)
 }
 
 function GoalProgress({ title, target, current, color }: any) {
-  const percentage = Math.min((current / target) * 100, 100);
+  // Guard against division by zero when target is 0
+  const percentage = target > 0 ? Math.min((current / target) * 100, 100) : 0;
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-end">
