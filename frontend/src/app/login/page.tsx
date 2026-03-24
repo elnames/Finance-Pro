@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/services/api';
 import { SignInPage, Testimonial } from "@/components/ui/sign-in";
@@ -20,7 +20,7 @@ const sampleTestimonials: Testimonial[] = [
   }
 ];
 
-export default function LoginPage() {
+function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -56,7 +56,8 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error('Auth error:', err);
-      setError(err.response?.data?.message || 'Error en la autenticación. Revisa tus datos.');
+      const msg = err.response?.data?.message;
+      setError(Array.isArray(msg) ? msg[0] : (msg || 'Error en la autenticación. Revisa tus datos.'));
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export default function LoginPage() {
   if (user) return null;
 
   return (
-    <SignInPage 
+    <SignInPage
       title={<span className="font-black italic tracking-tighter uppercase">Finance pro</span>}
       description={message || "Accede a tu panel de control financiero de alta fidelidad."}
       heroImageSrc="https://images.unsplash.com/photo-1642615835477-d303d7dc9ee9?w=2160&q=80"
@@ -76,5 +77,13 @@ export default function LoginPage() {
       loading={loading}
       defaultRegister={initialMode === 'register'}
     />
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

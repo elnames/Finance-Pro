@@ -73,7 +73,7 @@ export function ElegantShape({
 export function GeometricBackground({ children }: { children: React.ReactNode }) {
     return (
         <div className="relative min-h-screen w-full bg-[#030303]">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.05] via-transparent to-rose-500/[0.05] blur-3xl pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.05] via-transparent to-rose-500/[0.05] pointer-events-none" />
 
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <ElegantShape
@@ -160,7 +160,7 @@ export function HeroGeometric({
     };
 
     return (
-        <div className="relative min-h-[90vh] w-full flex items-center justify-center overflow-hidden bg-transparent">
+        <div className="relative min-h-[90vh] w-full flex items-start justify-center overflow-hidden bg-transparent pt-36 md:pt-40">
             <div className="relative z-10 container mx-auto px-4 md:px-6">
                 <div className="max-w-4xl mx-auto text-center">
                     <motion.div

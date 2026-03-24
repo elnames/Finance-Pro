@@ -13,11 +13,68 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
+import { PricingSection, PricingCardProps } from '@/components/ui/animated-glassy-pricing';
+
+const financePlans: PricingCardProps[] = [
+  {
+    planName: 'Free',
+    description: 'Para empezar a ordenar tus finanzas.',
+    price: '0',
+    features: [
+      '2 cuentas bancarias',
+      '50 transacciones/mes',
+      '5 categorías',
+      '1 presupuesto activo',
+      'Reportes básicos',
+    ],
+    buttonText: 'Comenzar Gratis',
+    buttonVariant: 'secondary',
+  },
+  {
+    planName: 'Premium',
+    description: 'Para quienes toman en serio su dinero.',
+    price: '9',
+    features: [
+      'Cuentas ilimitadas',
+      'Transacciones ilimitadas',
+      'Categorías ilimitadas',
+      'Presupuestos ilimitados',
+      'Gastos recurrentes',
+      'Reportes avanzados',
+      'Exportar a PDF/Excel',
+    ],
+    buttonText: 'Ir a Premium',
+    isPopular: true,
+    buttonVariant: 'primary',
+  },
+  {
+    planName: 'Elite',
+    description: 'Para inversores y equipos con exigencias máximas.',
+    price: '19',
+    features: [
+      'Todo lo de Premium',
+      'Múltiples perfiles',
+      'Metas de inversión',
+      'Alertas personalizadas',
+      'Soporte prioritario 24/7',
+      'Acceso anticipado a nuevas funciones',
+    ],
+    buttonText: 'Ir a Elite',
+    buttonVariant: 'primary',
+  },
+];
 
 export default function LandingPage() {
   const router = useRouter();
   const [isStartingDemo, setIsStartingDemo] = useState(false);
-  const { user, loading, loginAsDemo, logout } = useAuth() as any;
+  const [scrolled, setScrolled] = useState(false);
+  const { user, loading, loginAsDemo, logout } = useAuth();
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     if (!loading && user?.isDemo && !isStartingDemo) {
@@ -36,15 +93,20 @@ export default function LandingPage() {
 
   const handleDemo = async () => {
     setIsStartingDemo(true);
-    await loginAsDemo();
+    try {
+      await loginAsDemo();
+    } catch {
+      // loginAsDemo already logs the error; reset state so the button re-enables
+      setIsStartingDemo(false);
+    }
   };
 
   return (
     <GeometricBackground>
       <div className="min-h-screen text-foreground selection:bg-primary/30 relative">
         {/* Navigation */}
-        <nav className="fixed top-0 w-full z-50 px-6 py-8">
-          <div className="max-w-7xl mx-auto flex justify-between items-center glass border border-white/5 py-3 px-8 rounded-3xl">
+        <nav className={`fixed top-0 w-full z-50 px-6 py-8 transition-all duration-300 ${scrolled ? 'py-4' : 'py-8'}`}>
+          <div className={`max-w-7xl mx-auto flex justify-between items-center border py-3 px-4 sm:px-8 rounded-3xl transition-all duration-300 ${scrolled ? 'bg-black border-white/10 shadow-2xl' : 'glass border-white/5'}`}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
                 <Wallet className="text-white w-6 h-6" />
@@ -53,14 +115,13 @@ export default function LandingPage() {
             </div>
             
             <div className="hidden md:flex items-center gap-10">
-              <Link href="#features" className="text-sm font-bold text-muted-foreground hover:text-foreground transition-colors uppercase tracking-widest">Funciones</Link>
-              <Link href="#security" className="text-sm font-bold text-muted-foreground hover:text-foreground transition-colors uppercase tracking-widest">Seguridad</Link>
-              <Link href="#pricing" className="text-sm font-bold text-muted-foreground hover:text-foreground transition-colors uppercase tracking-widest">Precios</Link>
+              <a href="#features" className="text-sm font-bold text-muted-foreground hover:text-foreground transition-colors uppercase tracking-widest">Funciones</a>
+              <a href="#pricing" className="text-sm font-bold text-muted-foreground hover:text-foreground transition-colors uppercase tracking-widest">Precios</a>
             </div>
 
-            <div className="flex items-center gap-4">
-              <Link href="/login" className="text-sm font-bold hover:text-primary transition-colors uppercase tracking-widest px-4">Entrar</Link>
-              <Link href="/register" className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95 text-sm uppercase tracking-widest">Registrarme</Link>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Link href="/login" className="text-xs sm:text-sm font-bold hover:text-primary transition-colors uppercase tracking-widest px-2 sm:px-4">Entrar</Link>
+              <Link href="/register" className="bg-primary hover:bg-primary/90 text-white font-bold py-2 px-4 sm:py-3 sm:px-6 rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95 text-xs sm:text-sm uppercase tracking-widest whitespace-nowrap">Registro</Link>
             </div>
           </div>
         </nav>
@@ -75,33 +136,7 @@ export default function LandingPage() {
           description="Finance pro te empodera para gestionar, hacer crecer y asegurar tu patrimonio con seguimiento inteligente y claridad absoluta."
         />
 
-        {/* Extra geometric shapes for scroll depth */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 mt-[100vh]">
-           <ElegantShape
-              delay={0.8}
-              width={400}
-              height={100}
-              rotate={35}
-              gradient="from-emerald-500/[0.1]"
-              className="left-[-5%] top-[20%]"
-          />
-          <ElegantShape
-              delay={1}
-              width={300}
-              height={80}
-              rotate={-20}
-              gradient="from-blue-500/[0.1]"
-              className="right-[5%] top-[40%]"
-          />
-          <ElegantShape
-              delay={1.2}
-              width={500}
-              height={150}
-              rotate={10}
-              gradient="from-indigo-500/[0.1]"
-              className="left-[15%] top-[60%]"
-          />
-        </div>
+        {/* Extra geometric shapes removed — were causing GPU overload with too many simultaneous infinite animations */}
 
         {/* Features Grid */}
         <section id="features" className="relative z-10 py-32 px-6 bg-transparent">
@@ -160,6 +195,22 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Pricing Section */}
+        <section id="pricing" className="relative z-10 py-32 px-6">
+          <PricingSection
+            title={
+              <h2 className="text-5xl md:text-6xl font-black tracking-tighter mb-4">
+                Elige tu{' '}
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
+                  Plan Ideal
+                </span>
+              </h2>
+            }
+            subtitle="Empieza gratis y escala cuando lo necesites. Sin compromisos."
+            plans={financePlans}
+          />
+        </section>
+
         {/* CTA Section */}
         <section className="relative z-10 py-48 px-6 text-center">
           <div className="relative">
@@ -199,7 +250,7 @@ function FeatureCard({ icon: Icon, title, description, delay, buttonText }: any)
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.6 }}
       whileHover={{ y: -10 }}
-      className="glass p-10 rounded-[40px] border border-white/10 hover:border-primary/40 group transition-all relative overflow-hidden bg-white/5 backdrop-blur-2xl shadow-2xl"
+      className="glass p-10 rounded-[40px] border border-white/10 hover:border-primary/40 group transition-all relative overflow-hidden bg-white/5 backdrop-blur-sm shadow-2xl"
     >
       <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -translate-x-8 -translate-y-8" />
       <div className="w-16 h-16 bg-white/10 rounded-[24px] flex items-center justify-center mb-8 border border-white/10 shadow-inner group-hover:bg-primary group-hover:text-white transition-all">

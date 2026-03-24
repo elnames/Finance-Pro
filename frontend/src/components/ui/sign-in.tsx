@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { Eye, EyeOff } from 'lucide-react';
 
 // --- HELPER COMPONENTS (ICONS) ---
@@ -46,7 +47,7 @@ const GlassInputWrapper = ({ children }: { children: React.ReactNode }) => (
 
 const TestimonialCard = ({ testimonial, delay }: { testimonial: Testimonial, delay: string }) => (
   <div className={`animate-testimonial ${delay} flex items-start gap-3 rounded-3xl bg-zinc-900/40 backdrop-blur-xl border border-white/10 p-5 w-64 shadow-2xl`}>
-    <img src={testimonial.avatarSrc} className="h-10 w-10 object-cover rounded-2xl" alt="avatar" />
+    <Image src={testimonial.avatarSrc} alt="avatar" width={40} height={40} className="h-10 w-10 object-cover rounded-2xl" />
     <div className="text-sm leading-snug">
       <p className="flex items-center gap-1 font-medium text-white">{testimonial.name}</p>
       <p className="text-zinc-500">{testimonial.handle}</p>
