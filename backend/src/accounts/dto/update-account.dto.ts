@@ -1,4 +1,4 @@
-import { IsString, MaxLength, IsNumber, IsOptional } from 'class-validator';
+import { IsString, MaxLength, IsOptional, IsNumber, Min } from 'class-validator';
 
 export class UpdateAccountDto {
   @IsOptional()
@@ -6,7 +6,9 @@ export class UpdateAccountDto {
   @MaxLength(100)
   nombre?: string;
 
+  // Allow manual balance correction (e.g. reconciliation)
   @IsOptional()
   @IsNumber()
+  @Min(0)
   saldoActual?: number;
 }

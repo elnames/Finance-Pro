@@ -27,6 +27,9 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(3011, '0.0.0.0');
+  // Bind to localhost only in development; set HOST=0.0.0.0 explicitly in
+  // production container environments where the reverse proxy forwards traffic.
+  const host = process.env.HOST ?? 'localhost';
+  await app.listen(3011, host);
 }
 bootstrap();
