@@ -18,13 +18,27 @@ model User {
   accounts          Account[]
   categories        Category[]
   recurringExpenses RecurringExpense[]
+  budgets           Budget[]
+  payments          Payment[]
+}
+
+model Payment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  plan      String
+  amount    Int
+  buyOrder  String   @unique
+  status    String   @default("SUCCESS")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
   id           Int           @id @default(autoincrement())
   nombre       String
-  saldoActual  Float         @default(0)
+  saldoActual  Decimal       @default(0)
   userId       Int
+  deletedAt    DateTime?
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 }
@@ -35,27 +49,31 @@ model Category {
   tipo         String
   colorHex     String?
   userId       Int
+  deletedAt    DateTime?
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   budgets      Budget[]
 }
 
 model Transaction {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   monto       Float
   tipo        String
-  fecha       DateTime @default(now())
+  fecha       DateTime  @default(now())
   descripcion String
   accountId   Int
   categoryId  Int
-  account     Account  @relation(fields: [accountId], references: [id], onUpdate: NoAction)
-  category    Category @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+  account     Account   @relation(fields: [accountId], references: [id], onUpdate: NoAction)
+  category    Category  @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
 }
 
 model RecurringExpense {
   id          Int     @id @default(autoincrement())
   descripcion String
   monto       Float
+  tipo        String  @default("GASTO")
   diaDelMes   Int
   isActive    Boolean @default(true)
   userId      Int
@@ -68,5 +86,9 @@ model Budget {
   mes        Int
   anio       Int
   categoryId Int
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  userId     Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user       User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([categoryId, mes, anio])
 }
