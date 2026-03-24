@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Req, Res, HttpCode, HttpStatus, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Req, Res, HttpCode, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -12,7 +12,7 @@ class CreateCheckoutDto {
   plan: 'PREMIUM' | 'ELITE';
 }
 
-class TransbankReturnDto {
+class TransbankReturnQuery {
   @IsOptional() @IsString() token_ws?: string;
   @IsOptional() @IsString() TBK_TOKEN?: string;
   @IsOptional() @IsString() TBK_ORDEN_COMPRA?: string;
@@ -39,21 +39,19 @@ export class PaymentsController {
   }
 
   /**
-   * Transbank redirects the user's browser here (form POST) after payment.
-   * Must respond with a browser redirect to the frontend.
+   * Transbank redirects the user's browser here via GET with token_ws as query param.
+   * Cancelled/timeout transactions use TBK_TOKEN instead.
    */
-  @Post('transbank/commit')
-  @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false, transform: true }))
-  async transbankCommit(@Body() body: TransbankReturnDto, @Res() res: Response) {
+  @Get('transbank/commit')
+  async transbankCommit(@Query() query: TransbankReturnQuery, @Res() res: Response) {
     const frontendUrl = this.config.get('FRONTEND_URL') ?? 'http://localhost:3010';
 
     // No token_ws means payment was cancelled or timed out
-    if (!body.token_ws) {
+    if (!query.token_ws) {
       return res.redirect(`${frontendUrl}/payment/cancel`);
     }
 
-    const result = await this.paymentsService.commitTransbank(body.token_ws);
+    const result = await this.paymentsService.commitTransbank(query.token_ws);
 
     if (result.success) {
       return res.redirect(`${frontendUrl}/payment/success`);
