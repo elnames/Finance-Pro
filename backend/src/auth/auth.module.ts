@@ -12,9 +12,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     UsersModule,
     PassportModule,
     JwtModule.register({
-      // A02 - Cryptographic Failures: JWT secret from environment variable
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: '7d' },
+      // A02 - Cryptographic Failures: JWT secret from environment variable (must be set)
+      secret: process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET must be set'); })(),
+      signOptions: { expiresIn: '1h' },
     }),
   ],
   providers: [AuthService, LocalStrategy, JwtStrategy],

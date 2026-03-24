@@ -1,7 +1,21 @@
-import { Injectable, UnauthorizedException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, InternalServerErrorException, HttpException, Logger } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { RegisterDto } from './dto/register.dto';
+
+interface AuthUser {
+  id: number;
+  email: string;
+  nombre: string;
+  role: string;
+  plan: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  user: AuthUser;
+}
 
 @Injectable()
 export class AuthService {
@@ -13,18 +27,18 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, pass: string): Promise<any> {
+  async validateUser(email: string, pass: string): Promise<AuthUser | null> {
     const user = await this.usersService.findOne(email);
     if (user && (await bcrypt.compare(pass, user.password))) {
       const { password, ...result } = user;
-      return result;
+      return result as AuthUser;
     }
     // A09 - Log failed login attempts without exposing details
-    this.logger.warn(`Failed login attempt for email: ${email}`);
+    this.logger.warn('Failed login attempt detected');
     return null;
   }
 
-  async login(user: any) {
+  async login(user: AuthUser): Promise<AuthResponse> {
     const payload = { email: user.email, sub: user.id, nombre: user.nombre, role: user.role, plan: user.plan };
     return {
       access_token: this.jwtService.sign(payload),
@@ -38,13 +52,13 @@ export class AuthService {
     };
   }
 
-  async register(userData: { nombre: string; email: string; password: string }) {
-    const existingUser = await this.usersService.findOne(userData.email);
-    if (existingUser) {
-      throw new ConflictException('El correo ya está registrado');
-    }
-
+  async register(userData: RegisterDto): Promise<AuthResponse> {
     try {
+      const existingUser = await this.usersService.findOne(userData.email);
+      if (existingUser) {
+        throw new ConflictException('El correo ya está registrado');
+      }
+
       const hashedPassword = await bcrypt.hash(userData.password, 10);
       const user = await this.usersService.create({
         nombre: userData.nombre,
@@ -55,7 +69,8 @@ export class AuthService {
       // A09 - Log user creation without sensitive info
       this.logger.log(`New user registered: id=${user.id}`);
 
-      // Onboarding: Crear categorías por defecto
+      // Onboarding: insert all default categories in a single DB round-trip.
+      // Previously this was a for-loop with one insert per iteration (N+1).
       const defaultCategories = [
         { nombre: 'Sueldo', tipo: 'INGRESO', colorHex: '#10b981' },
         { nombre: 'Ventas', tipo: 'INGRESO', colorHex: '#34d399' },
@@ -65,29 +80,19 @@ export class AuthService {
         { nombre: 'Renta/Hogar', tipo: 'GASTO', colorHex: '#3b82f6' },
       ];
 
-      for (const cat of defaultCategories) {
-        try {
-          // @ts-ignore
-          await this.usersService.createDefaultCategory(user.id, cat);
-        } catch (catError) {
-          this.logger.warn(`Could not create default category "${cat.nombre}" for user ${user.id}`);
-        }
+      try {
+        await this.usersService.createDefaultCategories(user.id, defaultCategories);
+      } catch (catError) {
+        this.logger.warn(`Could not create default categories for user ${user.id}`);
       }
 
-      const payload = { email: user.email, sub: user.id, nombre: user.nombre, role: user.role, plan: user.plan };
-      return {
-        access_token: this.jwtService.sign(payload),
-        user: {
-          id: user.id,
-          email: user.email,
-          nombre: user.nombre,
-          role: user.role,
-          plan: user.plan,
-        },
-      };
+      return this.login(user as AuthUser);
     } catch (error) {
+      // Re-throw known HTTP exceptions (e.g. ConflictException) without wrapping
+      if (error instanceof HttpException) throw error;
       // A09 - Log error without leaking stack traces to clients
-      this.logger.error(`Registration error for email ${userData.email}: ${(error as any).message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Registration error: ${message}`);
       throw new InternalServerErrorException('Error al crear el usuario. Inténtalo de nuevo.');
     }
   }
@@ -107,6 +112,7 @@ export class AuthService {
         plan: 'PREMIUM',
       });
 
+      // Batch insert — single round-trip instead of N sequential inserts
       const demoData = [
         { nombre: 'Salario Corporativo', tipo: 'INGRESO', colorHex: '#10b981' },
         { nombre: 'Dividendos', tipo: 'INGRESO', colorHex: '#3b82f6' },
@@ -114,12 +120,9 @@ export class AuthService {
         { nombre: 'Mantenimiento', tipo: 'GASTO', colorHex: '#6366f1' },
       ];
 
-      for (const cat of demoData) {
-        // @ts-ignore
-        await this.usersService.createDefaultCategory(user.id, cat);
-      }
+      await this.usersService.createDefaultCategories(user.id, demoData);
     }
 
-    return this.login(user);
+    return this.login(user as AuthUser);
   }
 }

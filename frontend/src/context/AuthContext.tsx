@@ -2,11 +2,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/services/api';
+import type { User } from '@/types';
 
 interface AuthContextType {
-  user: any;
+  user: User | null;
   loading: boolean;
-  login: (token: string, user: any) => void;
+  login: (token: string, user: User) => void;
   logout: () => void;
   loginAsDemo: () => Promise<void>;
 }
@@ -14,7 +15,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -22,34 +23,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedUser = localStorage.getItem('user');
     const token = localStorage.getItem('token');
     if (savedUser && token) {
-      setUser(JSON.parse(savedUser));
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          setUser(JSON.parse(savedUser) as User);
+        } else {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false);
   }, []);
 
-  const login = (token: string, userData: any) => {
+  const login = (token: string, userData: User) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
-    // Let the component decide where to redirect or use default
-    window.location.href = '/dashboard'; 
+    router.push('/dashboard');
   };
 
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
-    window.location.href = '/';
+    router.replace('/');
   };
 
   const loginAsDemo = async () => {
-    try {
-      const { data } = await api.post('/auth/demo');
-      const demoUser = { ...data.user, isDemo: true };
-      login(data.access_token, demoUser);
-    } catch (error) {
-      console.error('Error logging in as demo', error);
-    }
+    const { data } = await api.post('/auth/demo');
+    const demoUser: User = { ...data.user, isDemo: true };
+    login(data.access_token, demoUser);
   };
 
   return (

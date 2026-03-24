@@ -13,7 +13,7 @@ export const RoleGate = ({ children, allowedRoles }: RoleGateProps) => {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && (!user || !allowedRoles.includes(user.role))) {
+    if (!loading && (!user || !allowedRoles.includes(user.plan))) {
       router.replace('/dashboard');
     }
   }, [user, loading, allowedRoles, router]);
@@ -26,7 +26,7 @@ export const RoleGate = ({ children, allowedRoles }: RoleGateProps) => {
     );
   }
 
-  if (!user || !allowedRoles.includes(user.role)) {
+  if (!user || !allowedRoles.includes(user.plan)) {
     return null;
   }
 

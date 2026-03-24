@@ -4,15 +4,17 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [router]);
+  }, [user, loading, router]);
+
+  // Show nothing while auth state is resolving to avoid flicker
+  if (loading) return null;
 
   if (!user) return null;
 
