@@ -39,3 +39,9 @@ Thumbs.db
 
 # Temporary
 /tmp/
+
+# Prisma schema variants with potential credentials
+backend/prisma/schema_new.prisma
+backend/prisma/schema_test.prisma
+backend/prisma/schema_*.prisma
+!backend/prisma/schema.prisma

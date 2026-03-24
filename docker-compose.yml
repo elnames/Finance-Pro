@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: finance_backend
+    ports:
+      - "3011:3011"
+    env_file:
+      - ./backend/.env
+    environment:
+      - FRONTEND_URL=https://finance.nmsdev.tech
+      - BACKEND_URL=https://finance.nmsdev.tech/api
+      - HOST=0.0.0.0
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://finance.nmsdev.tech/api
+    container_name: finance_frontend
+    ports:
+      - "3010:3010"
+    depends_on:
+      - backend
+    restart: unless-stopped

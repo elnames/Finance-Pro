@@ -3,3 +3,9 @@ node_modules
 .env
 
 /generated/prisma
+
+# Prisma schema variants with potential credentials
+prisma/schema_new.prisma
+prisma/schema_test.prisma
+prisma/schema_*.prisma
+!prisma/schema.prisma
